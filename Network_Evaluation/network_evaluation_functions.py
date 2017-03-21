@@ -14,6 +14,7 @@ def load_network_file(network_file_path, delimiter):
 import time
 import numpy as np
 import scipy
+import copy
 
 # Normalize network (or network subgraph) for random walk propagation
 def normalize_network(network):
@@ -27,7 +28,7 @@ def normalize_network(network):
 	sparse_degree_norm_array = scipy.sparse.csr_matrix(degree_norm_array)
 	adj_array_norm = np.dot(sparse_degree_norm_array, adj_mat)
 	print "Subgraph Normalized", time.time()-starttime, 'seconds'
-	return np.array(adj_array_norm.todense())
+	return adj_array_norm
 # Note about normalizing by degree, if multiply by degree_norm_array first (D^-1 * A), then do not need to return
 # transposed adjacency array, it is already in the correct orientation
 
@@ -36,19 +37,68 @@ def calculate_alpha(network):
 	m, b = -0.17190024, 0.7674828
 	avg_node_degree = np.log10(np.mean(network.degree().values()))
 	alpha_val = round(m*avg_node_degree+b,3)
-	return alpha_val
-
-# Propagate binary matrix (each row is different node set to propagate)
-def network_propagation(network, binary_node_sets_matrix, method='power'):
-	# Calculate alpha from network
-	network_alpha = calculate_alpha(network)
-
-	# Closed form random-walk propagation (as seen in HotNet2)
-	if method=='closed':
-		return prop_data
-	# Iterative form random-walk propagation (as seen in NBS)
+	if alpha_val <=0:
+		raise ValueError('Alpha <= 0 - Network Avg Node Degree is too high')
+		# There should never be a case where Alpha >= 1, as avg node degree will never be negative
 	else:
-		return prop_data
+		return alpha_val
+
+# Propagate binary matrix via closed form of random walk model
+def closed_form_network_propagation(network, binary_node_sets_matrix):
+	starttime=time.time()
+	# Calculate alpha from network (resulting alpha must be <1)
+	network_alpha = calculate_alpha(network)
+	# Separate network into connected components and calculate propagation values of each sub-sample on each connected component
+		# Normalize network for propagation
+		norm_adj_mat = normalize_network(network)
+		# Closed form random-walk propagation (as seen in HotNet2)
+		# Ft = (1-alpha)*Fo * (I-alpha*norm_adj_mat)^-1
+		term1=(1-network_alpha)*binary_node_sets_matrix
+		term2=np.identity(binary_node_sets_matrix.shape[0])-network_alpha*norm_adj_mat
+		term2_inv = np.linalg.inv(term2)
+		# Ft = term1 * term2^-1
+		prop_data = np.dot(term1, term2_inv)
+	# Concatenate results 
+
+
+	print 'Closed Propagation:', time.time()-starttime, 'seconds'
+	return prop_data
+
+# Propagate binary matrix via iterative/power form of random walk model
+def iterative_network_propagation(network, binary_node_sets_matrix, max_iter=250, tol=1e-4):
+	starttime=time.time()
+	# Calculate alpha
+	network_alpha = calculate_alpha(network)
+	# Normalize full network for propagation
+	norm_adj_mat = normalize_network(network)
+	# Initialize data structures for propagation
+	Fn = np.array(binary_node_sets_matrix[network.nodes()])
+    Fn_prev = copy.deepcopy(Fn)
+    step_RMSE = [sum(sum(copy.deepcopy(Fn)))]
+	# Propagate forward
+	while (i <= max_iter) and (step_RMSE > tol):
+    
+    #Propagate forward
+    Fn=np.array(binary_node_sets_matrix[])
+    Fn_prev = np.array(binary_node_sets_matrix)
+    prop_geno_RMSE=[sum(sum(np.array(Fo)))]
+    for i in range(num_iter):
+        if i==0:
+            Fn = alpha*(sm_mat.dot(adj_mat))+(1-alpha)*Fi
+            #Fn=prop_step(norm_adj_mat,Fn,np.array(Fo),alpha)
+        else:
+            Fn_prev=Fn
+            Fn=prop_step(norm_adj_mat,Fn,np.array(Fo),alpha)
+        step_RMSE = np.sqrt(sum(sum((Fn_prev-Fn)**2)))/norm_adj_mat.shape[0]
+        if step_RMSE == prop_geno_RMSE[-1]:
+            prop_geno_RMSE.append(step_RMSE)
+            break
+        else:
+            prop_geno_RMSE.append(step_RMSE)
+    else:
+    	print 'Max Iterations Reached'
+    print 'Iterative Propagation:', time.time()-starttime3, 'seconds'
+    return Fn
 
 
 ###########################################################################
@@ -126,7 +176,7 @@ def symmetric_z_norm(similarity_df):
 	return symmetric_z_table
 
 # Conversion of normalized pairwise similarities to actual network by using KNN and top k similarities for each node
-def PSN_construction(similarity_df, k):
+def KNN_joining(similarity_df, k):
 	starttime = time.time()
 	pairwise_sim_array = np.array(similarity_df)
 	np.fill_diagonal(pairwise_sim_array, -1)
@@ -242,7 +292,7 @@ def calculate_robust_z(network, binary_node_sub_sample_matrix, n_shuffles):
 	AUPRC_null_MAD = abs(shuffnet_AUPRC_table.subtract(AUPRC_null_median, axis=0)).median(axis=1)
 	AUPRC_null_MAD_scaled = k*AUPRC_null_MAD
 	AUPRC_ZNorm = (actualnet_AUPRC_result - AUPRC_null_median).divide(AUPRC_null_MAD_scaled)
-	return AUPRC_ZNorm.to_dict()
+	return AUPRC_ZNorm
 
 
 
