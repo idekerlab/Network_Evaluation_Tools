@@ -4,8 +4,8 @@
 import networkx as nx
 
 # Load network from file
-def load_network_file(network_file_path, delimiter):
-	network = nx.read_edgelist(input_network, delimiter=delimiter)
+def load_network_file(network_file_path, delimiter='\t'):
+	network = nx.read_edgelist(network_file_path, delimiter=delimiter)
 	return network
 
 #######################################################
@@ -18,7 +18,6 @@ import copy
 
 # Normalize network (or network subgraph) for random walk propagation
 def normalize_network(network):
-	starttime = time.time()
 	adj_mat = nx.adjacency_matrix(network)
 	adj_array = np.array(adj_mat.todense())
 	degree_norm_array = np.zeros(adj_array.shape)
@@ -27,14 +26,12 @@ def normalize_network(network):
 		degree_norm_array[i,i]=1/float(degree_sum[i])
 	sparse_degree_norm_array = scipy.sparse.csr_matrix(degree_norm_array)
 	adj_array_norm = np.dot(sparse_degree_norm_array, adj_mat)
-	print "Subgraph Normalized", time.time()-starttime, 'seconds'
 	return adj_array_norm
 # Note about normalizing by degree, if multiply by degree_norm_array first (D^-1 * A), then do not need to return
 # transposed adjacency array, it is already in the correct orientation
 
 # Calculate optimal propagation coefficient
-def calculate_alpha(network):
-	m, b = -0.17190024, 0.7674828
+def calculate_alpha(network, m=-0.17190024, b=0.7674828):
 	avg_node_degree = np.log10(np.mean(network.degree().values()))
 	alpha_val = round(m*avg_node_degree+b,3)
 	if alpha_val <=0:
@@ -45,61 +42,66 @@ def calculate_alpha(network):
 
 # Propagate binary matrix via closed form of random walk model
 def closed_form_network_propagation(network, binary_node_sets_matrix):
-	starttime=time.time()
-	# Calculate alpha from network (resulting alpha must be <1)
-	network_alpha = calculate_alpha(network)
-	# Separate network into connected components and calculate propagation values of each sub-sample on each connected component
-		# Normalize network for propagation
-		norm_adj_mat = normalize_network(network)
-		# Closed form random-walk propagation (as seen in HotNet2)
-		# Ft = (1-alpha)*Fo * (I-alpha*norm_adj_mat)^-1
-		term1=(1-network_alpha)*binary_node_sets_matrix
-		term2=np.identity(binary_node_sets_matrix.shape[0])-network_alpha*norm_adj_mat
-		term2_inv = np.linalg.inv(term2)
-		# Ft = term1 * term2^-1
-		prop_data = np.dot(term1, term2_inv)
-	# Concatenate results 
-
-
-	print 'Closed Propagation:', time.time()-starttime, 'seconds'
-	return prop_data
+    starttime=time.time()
+    # Calculate alpha from network (resulting alpha must be <1)
+    network_alpha = calculate_alpha(network)
+    print 'Alpha:', network_alpha
+    # Separate network into connected components and calculate propagation values of each sub-sample on each connected component
+    subgraphs = list(nx.connected_component_subgraphs(network))
+    prop_data_node_order = []
+    print 'Number of subgraphs:', len(subgraphs)
+    for i in range(len(subgraphs)):
+        subgraph = subgraphs[i]
+        # Get nodes of subgraph
+        subgraph_nodes = subgraph.nodes()
+        prop_data_node_order = prop_data_node_order + subgraph_nodes
+        # Filter binary_node_sets_matrix by nodes of subgraph
+        binary_node_sets_matrix_filt = np.array(binary_node_sets_matrix.T.ix[subgraph_nodes].fillna(0).astype(int).T)
+        # Normalize each network subgraph for propagation
+        subgraph_norm = normalize_network(subgraph)
+        # Closed form random-walk propagation (as seen in HotNet2) for each subgraph: Ft = (1-alpha)*Fo * (I-alpha*norm_adj_mat)^-1
+        term1=(1-network_alpha)*binary_node_sets_matrix_filt
+        term2=np.identity(binary_node_sets_matrix_filt.shape[1])-network_alpha*subgraph_norm.toarray()
+        term2_inv = np.linalg.inv(term2)
+        # Concatenate propagation results 
+        if i==0:
+            prop_data = np.array(np.dot(term1, term2_inv))
+        else:
+            subgraph_Fn = np.array(np.dot(term1, term2_inv))
+            prop_data = np.concatenate((prop_data, subgraph_Fn), axis=1)
+    print 'Closed Propagation:', time.time()-starttime, 'seconds'
+    # Return propagated result as dataframe
+    prop_data_df = pd.DataFrame(data=prop_data, index = binary_node_sets_matrix.index, columns=prop_data_node_order)
+    return prop_data_df
 
 # Propagate binary matrix via iterative/power form of random walk model
-def iterative_network_propagation(network, binary_node_sets_matrix, max_iter=250, tol=1e-4):
-	starttime=time.time()
-	# Calculate alpha
-	network_alpha = calculate_alpha(network)
-	# Normalize full network for propagation
-	norm_adj_mat = normalize_network(network)
-	# Initialize data structures for propagation
-	Fn = np.array(binary_node_sets_matrix[network.nodes()])
-    Fn_prev = copy.deepcopy(Fn)
-    step_RMSE = [sum(sum(copy.deepcopy(Fn)))]
-	# Propagate forward
-	while (i <= max_iter) and (step_RMSE > tol):
-    
-    #Propagate forward
-    Fn=np.array(binary_node_sets_matrix[])
-    Fn_prev = np.array(binary_node_sets_matrix)
-    prop_geno_RMSE=[sum(sum(np.array(Fo)))]
-    for i in range(num_iter):
-        if i==0:
-            Fn = alpha*(sm_mat.dot(adj_mat))+(1-alpha)*Fi
-            #Fn=prop_step(norm_adj_mat,Fn,np.array(Fo),alpha)
+def iterative_network_propagation(network, binary_node_sets_matrix, max_iter=250, tol=1e-8):
+    starttime=time.time()
+    # Calculate alpha
+    network_alpha = calculate_alpha(network)
+    print 'Alpha:', network_alpha
+    # Normalize full network for propagation
+    starttime = time.time()
+    norm_adj_mat = normalize_network(network)
+    print "Network Normalized", time.time()-starttime, 'seconds'
+    # Initialize data structures for propagation
+    Fi = scipy.sparse.csr_matrix(binary_node_sets_matrix.T.ix[network.nodes()].fillna(0).astype(int).T)
+    Fn_prev = copy.deepcopy(Fi)
+    step_RMSE = [sum(sum(np.array(Fi.todense())))]
+    # Propagate forward
+    i = 0
+    while (i <= max_iter) and (step_RMSE[-1] > tol):
+        if i == 0:
+            Fn = network_alpha*np.dot(Fi, norm_adj_mat)+(1-network_alpha)*Fi
         else:
-            Fn_prev=Fn
-            Fn=prop_step(norm_adj_mat,Fn,np.array(Fo),alpha)
-        step_RMSE = np.sqrt(sum(sum((Fn_prev-Fn)**2)))/norm_adj_mat.shape[0]
-        if step_RMSE == prop_geno_RMSE[-1]:
-            prop_geno_RMSE.append(step_RMSE)
-            break
-        else:
-            prop_geno_RMSE.append(step_RMSE)
-    else:
-    	print 'Max Iterations Reached'
-    print 'Iterative Propagation:', time.time()-starttime3, 'seconds'
-    return Fn
-
+            Fn_prev = Fn
+            Fn = network_alpha*np.dot(Fn_prev, norm_adj_mat)+(1-network_alpha)*Fi
+        step_diff = (Fn_prev-Fn).toarray().flatten()
+        step_RMSE.append(np.sqrt(sum(step_diff**2) / len(step_diff)))
+        i+=1
+    print 'Iterative Propagation:', i, 'steps,', time.time()-starttime, 'seconds, step RMSE:', step_RMSE[-1]
+    prop_data_df = pd.DataFrame(data=Fn.todense(), index=binary_node_sets_matrix.index, columns = network.nodes())
+    return prop_data_df, step_RMSE[1:]
 
 ###########################################################################
 # ---------- Patient Similarity Network Construction Functions ---------- #
@@ -110,7 +112,7 @@ from sklearn.decomposition import PCA
 # Load somatic mutation data (construct binary somatic mutation matrix in context of molecular network)
 def load_TCGA_MAF(MAF_file):
 	# Process MAF file to produce dictionary of patient mutations
-    TCGA_MAF = pd.read_csv(maf_file,sep='\t',low_memory=False)
+    TCGA_MAF = pd.read_csv(MAF_file,sep='\t',low_memory=False)
     # Convert to matrix format
     TCGA_sm_mat = TCGA_MAF.groupby(['Tumor_Sample_Barcode', 'Hugo_Symbol']).size().unstack().fillna(0)
     # Save only as int
@@ -124,7 +126,7 @@ def mean_center_data(propagated_sm_matrix):
 	return propagated_sm_matrix - propagated_sm_matrix.mean()
 
 # PCA reduction (up to threshold t of explained variance) of mean-centered, propagated somatic mutation profiles
-def perform_PCA(propagated_sm_matrix, t):
+def perform_PCA(propagated_sm_matrix, t=0.9):
 	starttime = time.time()
 	# Construct PCA model
 	pca = PCA()
@@ -147,7 +149,7 @@ def perform_PCA(propagated_sm_matrix, t):
 def pairwise_spearman(propagated_sm_matrix):
 	starttime = time.time()
 	# Convert rows of PCA reduced patient profiles to rankings and change to array
-	data_rank_df = data_df.rank(axis=1)
+	data_rank_df = propagated_sm_matrix.rank(axis=1)
 	data_rank_array = data_rank_df.as_matrix()
 	# Fast pearson correlation calculation on ranks
 	data_rank_array_dot = data_rank_array.dot(data_rank_array.T)
@@ -159,7 +161,7 @@ def pairwise_spearman(propagated_sm_matrix):
 	corr = corr / std.reshape(1, -1)
 	corr = corr / std.reshape(-1, 1)
 	# Convert pairwise correlation array to dataframe
-	spearman_corr_df = pd.DataFrame(corr, index=data_df.index, columns=data_df.index)
+	spearman_corr_df = pd.DataFrame(corr, index=propagated_sm_matrix.index, columns=propagated_sm_matrix.index)
 	print 'Pairwise correlation calculation complete:', time.time()-starttime, 'seconds'
 	return spearman_corr_df
 
@@ -176,7 +178,7 @@ def symmetric_z_norm(similarity_df):
 	return symmetric_z_table
 
 # Conversion of normalized pairwise similarities to actual network by using KNN and top k similarities for each node
-def KNN_joining(similarity_df, k):
+def KNN_joining(similarity_df, k=5):
 	starttime = time.time()
 	pairwise_sim_array = np.array(similarity_df)
 	np.fill_diagonal(pairwise_sim_array, -1)
@@ -229,7 +231,7 @@ def SBNE_binary_matrix_constructor(node_set_file, network, p, n):
 		intersect = list(node_sets[node_set].intersection(network_nodes))
 		sample_size = int(round(p*len(intersect)))
 		for i in range(1, n+1):
-			node_set_sub_sample = random.sample(intersect, sample_size) for i in range(n)
+			node_set_sub_sample = random.sample(intersect, sample_size)
 			node_set_sub_sample_binary_matrix.ix[node_set+'_'+repr(i)][node_set_sub_sample] = 1
 	return node_sets, node_set_sub_sample_binary_matrix
 
