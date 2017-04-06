@@ -73,7 +73,7 @@ def perform_PCA(propagated_sm_matrix, t=0.9):
 			return propagated_profile_pca.iloc[:,:i]
 
 # Pairwise spearman correlation of PCA reduced, mean-centered, propagated somatic mutation profile
-def pairwise_spearman(propagated_sm_matrix):
+def pairwise_spearman(propagated_sm_matrix, save_similarity=None):
 	starttime = time.time()
 	# Convert rows of PCA reduced patient profiles to rankings and change to array
 	data_rank_df = propagated_sm_matrix.rank(axis=1)
@@ -90,7 +90,11 @@ def pairwise_spearman(propagated_sm_matrix):
 	# Convert pairwise correlation array to dataframe
 	spearman_corr_df = pd.DataFrame(corr, index=propagated_sm_matrix.index, columns=propagated_sm_matrix.index)
 	print 'Pairwise correlation calculation complete:', time.time()-starttime, 'seconds'
-	return spearman_corr_df
+	if save_similarity==None:
+		return spearman_corr_df
+	else:
+		spearman_corr_df.to_hdf(save_similarity, key=network_name, mode='w')
+		return spearman_corr_df
 
 # Symmetric Z-normalization of pairwise correlation matrix
 def symmetric_z_norm(similarity_df):
@@ -105,7 +109,7 @@ def symmetric_z_norm(similarity_df):
 	return symmetric_z_table
 
 # Conversion of normalized pairwise similarities to actual network by using KNN and top k similarities for each node
-def KNN_joining(similarity_df, k=5):
+def KNN_joining(similarity_df, k=5, save_network=None):
 	starttime = time.time()
 	pairwise_sim_array = np.array(similarity_df)
 	np.fill_diagonal(pairwise_sim_array, -1)
@@ -116,7 +120,11 @@ def KNN_joining(similarity_df, k=5):
 		for neighbor in pat_knn:
 			G.add_edge(pat, neighbor)
 	print 'Network construction complete:', time.time()-starttime, 'seconds'
-	return G
+	if save_network==None:
+		return G
+	else:
+		nx.write_edgelist(save_network, delimiter='\t', data=False)
+		return G
 
 # Wrapper function for construction patient similarity network
 def PSN_Constructor(network_path, MAF_path, outdir, delimiter='\t', min_mut=1, save_similarity=False):
@@ -151,6 +159,6 @@ def PSN_Constructor(network_path, MAF_path, outdir, delimiter='\t', min_mut=1, s
 	# Construct PSN graph
 	PSN = KNN_joining(prop_centered_PCA_spearman_znorm)
 	# Write PSN to file
-	nx.write_edgelist(PSN, outdir+network_name+'_PSN.txt', delimiter='\t', data=False)	
+	nx.write_edgelist(PSN, outdir+network_name+'_PSN.txt', delimiter='\t', data=False)
 	print network_name, 'PSN Constructed:', len(PSN.nodes()), 'patients', len(PSN.edges()), 'edges'
 	return PSN
