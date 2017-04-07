@@ -64,8 +64,8 @@ def calculate_AUPRC_serial(prop_geno, p, n, node_set):
 	return np.mean(AUPRCs)
 
 # Analyze AUPRC of node set recovery for given node set (parameter setup written for running in serial)
-def calculate_AUPRC_parallel(node_set_data):
-	node_set_name, node_set, p, n = node_set_data[0], node_set_data[1], node_set_data[2], node_set_data[3]
+def calculate_AUPRC_parallel(node_set_params):
+	node_set_name, node_set, p, n = node_set_params[0], node_set_params[1], node_set_params[2], node_set_params[3]
 	runtime = time.time()
 	intersect = [nodes for nodes in node_set if nodes in prop_geno.index]
 	AUPRCs = []
@@ -95,7 +95,7 @@ def AUPRC_Analysis_initializer(global_prop_net):
 	prop_geno = global_prop_net
 
 # Wapper for conducting AUPRC Analysis for input node set file and network (has parallel option)
-def AUPRC_Analysis(network_file, node_set_file, sample_p, AUPRC_iterations, cores=1, save_results=None):
+def AUPRC_Analysis(network_file, node_set_file, sample_p, AUPRC_iterations, cores=1, save_results=False, outdir=None):
 	# Load network
 	network = prop.load_network(network_file, delimiter='\t')
 	# Load node set
@@ -116,14 +116,14 @@ def AUPRC_Analysis(network_file, node_set_file, sample_p, AUPRC_iterations, core
 		AUPRC_results = pool.map(calculate_AUPRC_serial, AUPRC_Analysis_params)
 		# Construct AUPRC results dictionary
 		node_set_AUPRCs = {result[0]:result[1] for result in AUPRC_results}
-	if save_results == None:
+	if save_results == False:
 		return node_set_AUPRCs
 	else:
-		pd.Series(node_set_AUPRCs, name='AUPRC').to_csv(save_results)
+		pd.Series(node_set_AUPRCs, name='AUPRC').to_csv(outdir+'AUPRC_results.csv')
 		return node_set_AUPRCs
 
 # Wrapper for shuffling input network and performing AUPRC analysis on each shuffled network and then compile results
-def null_AUPRC_Analysis_wrapper(network_file, node_set_file, sample_p, AUPRC_iterations, null_iterations, cores=1, save_results=None)
+def null_AUPRC_Analysis_wrapper(network_file, node_set_file, sample_p, AUPRC_iterations, null_iterations, cores=1, save_results=False, outdir=None)
 	# Load network
 	network = prop.load_network(network_file, delimiter='\t')
 	# Load node set
@@ -150,26 +150,28 @@ def null_AUPRC_Analysis_wrapper(network_file, node_set_file, sample_p, AUPRC_ite
 		null_AUPRCs.append(pd.Series(node_set_AUPRCs, name='null AUPRC '+repr(i)))
 	null_AUPRCs_table = pd.cocnat(null_AUPRCs, axis=1)
 
-	if save_results == None:
+	if save_results == False:
 		return null_AUPRCs_table
 	else:
-		null_AUPRCs_table.to_csv(save_results)
+		null_AUPRCs_table.to_csv(outdir+'null_AUPRC_results.csv')
 		return null_AUPRCs_table
 
 # Calculate robust z-score metric for a network on given node sets given results of AUPRC_Analysis_wrapper and null_AUPRC_Analysis_wrapper
-def calculate_robust_z(actual_net_AUPRCs, shuff_net_AUPRCs, save_result=None):
-	# Calculate robust z-score of network for each node set
-	# Mean absolute deviation scaling factor to make median absolute deviation behave similarly to the standard deviation of a normal distribution
-	k = 1/stats.norm.ppf(0.75)
+def AUPRC_Analysis_with_ZNorm(actual_net_AUPRCs, shuff_net_AUPRCs, save_results=False, outdir=None):
+	# Read input data files and concat together:
+	shuff_net_AUPRCs = pd.read_csv(shuff_net_AUPRCs, index_col=0)
+	actual_net_AUPRCs = pd.read_csv(shuff_net_AUPRCs, index_col=0)
+
+	k = 1/stats.norm.ppf(0.75)	# Mean absolute deviation scaling factor to make median absolute deviation behave similarly to the standard deviation of a normal distribution
 	# Compute robust z-score for composite network performances
 	AUPRC_null_median = shuff_net_AUPRCs.median(axis=1)
-	AUPRC_null_MAD = abs(shuff_net_AUPRCs.subtract(AUPRC_null_median, axis=0)).median(axis=1)
+	AUPRC_null_MAD = abs(actual_net_AUPRCs.ix[AUPRC_null_median.index].subtract(AUPRC_null_median, axis=0)).median(axis=1)
 	AUPRC_null_MAD_scaled = k*AUPRC_null_MAD
 	AUPRC_ZNorm = (shuff_net_AUPRCs.ix[AUPRC_null_median.index] - AUPRC_null_median).divide(AUPRC_null_MAD_scaled)
-	if save_results == None:
+	if save_results == False:
 		return AUPRC_ZNorm
 	else:
-		AUPRC_ZNorm.to_csv(save_results)
+		AUPRC_ZNorm.to_csv(outdir+'AUPRC_results_ZNorm.csv')
 		return AUPRC_ZNorm
 
 

@@ -12,7 +12,7 @@ import network_propagation as prop
 # Load somatic mutation data (construct binary somatic mutation matrix in context of molecular network)
 # If directory given: constructs combined somatic mutation matrix from all MAF files - Assumes filenames from Firehose
 # Save path extention will be compressed matrix '.hdf'
-def load_TCGA_MAF(MAF_path, save_path=None):
+def load_TCGA_MAF(MAF_path, save_data=False, outdir=None):
 	print 'Loading Data...'
 	if os.path.isdir(MAF_path):
 		MAF_fn = [fn for fn in os.listdir(MAF_path) if fn.endswith('.maf.annotated')]
@@ -42,10 +42,10 @@ def load_TCGA_MAF(MAF_path, save_path=None):
 	# Filter all patients completely with more than 1 patient ID from PanCancer Data
 	sm_mat_filt = TCGA_sm_mat.ix[TCGA_sm_mat.index.value_counts().index[TCGA_sm_mat.index.value_counts()==1]].fillna(0)
 	print 'TCGA somatic mutation data loaded:', time.time()-starttime, 'seconds.', sm_mat_filt.shape[0], 'patients,', sm_mat_filt.shape[1], 'genes'
-	if save_path == None:
+	if save_path == False:
 		return sm_mat_filt
 	else:
-		sm_mat_filt.to_hdf(save_path, key='SomaticMutationMatrix', mode='w')
+		sm_mat_filt.to_csv(outdir+'TCGA_somatic_mutation_matrix.csv', key='SomaticMutationMatrix', mode='w')
 		return sm_mat_filt
 
 # Mean-centering of propagated somatic mutation profiles
@@ -73,7 +73,7 @@ def perform_PCA(propagated_sm_matrix, t=0.9):
 			return propagated_profile_pca.iloc[:,:i]
 
 # Pairwise spearman correlation of PCA reduced, mean-centered, propagated somatic mutation profile
-def pairwise_spearman(propagated_sm_matrix, save_similarity=None):
+def pairwise_spearman(propagated_sm_matrix, save_similarity=False, outdir=None):
 	starttime = time.time()
 	# Convert rows of PCA reduced patient profiles to rankings and change to array
 	data_rank_df = propagated_sm_matrix.rank(axis=1)
@@ -90,10 +90,10 @@ def pairwise_spearman(propagated_sm_matrix, save_similarity=None):
 	# Convert pairwise correlation array to dataframe
 	spearman_corr_df = pd.DataFrame(corr, index=propagated_sm_matrix.index, columns=propagated_sm_matrix.index)
 	print 'Pairwise correlation calculation complete:', time.time()-starttime, 'seconds'
-	if save_similarity==None:
+	if save_similarity==False:
 		return spearman_corr_df
 	else:
-		spearman_corr_df.to_hdf(save_similarity, key=network_name, mode='w')
+		spearman_corr_df.to_csv(outdir+'Patient_Similarity_Matrix.csv', key=network_name, mode='w')
 		return spearman_corr_df
 
 # Symmetric Z-normalization of pairwise correlation matrix
@@ -147,18 +147,15 @@ def PSN_Constructor(network_path, MAF_path, outdir, delimiter='\t', min_mut=1, s
 	# PCA Reduce centered data
 	prop_centered_PCA = perform_PCA(prop_centered)
 	# Pairwise Spearman on PCA reduced data
-	prop_centered_PCA_spearman = pairwise_spearman(prop_centered_PCA)
-	# Save pairwise patient similarity
-	if save_similarity:
-		prop_centered_PCA_spearman.to_hdf(outdir+network_name+'_PatSimilarities.hdf', key=network_name, mode='w')
-		print network_name, 'patient similarity file saved'
+	if save_similarity == False:
+		prop_centered_PCA_spearman = pairwise_spearman(prop_centered_PCA)
 	else:
-		pass
+		prop_centered_PCA_spearman = pairwise_spearman(prop_centered_PCA, save_similarity=True, outdir=outdir)
 	# Symmetric Z-normalization of pairwise spearman data
 	prop_centered_PCA_spearman_znorm = symmetric_z_norm(prop_centered_PCA_spearman)
 	# Construct PSN graph
 	PSN = KNN_joining(prop_centered_PCA_spearman_znorm)
 	# Write PSN to file
-	nx.write_edgelist(PSN, outdir+network_name+'_PSN.txt', delimiter='\t', data=False)
-	print network_name, 'PSN Constructed:', len(PSN.nodes()), 'patients', len(PSN.edges()), 'edges'
+	nx.write_edgelist(PSN, outdir+'Patient_Similarity_Network.txt', delimiter='\t', data=False)
+	print 'Patient Similarity Network Constructed:', len(PSN.nodes()), 'patients', len(PSN.edges()), 'edges'
 	return PSN
