@@ -22,17 +22,12 @@ setup(
 		'License :: OSI Approved :: MIT License',
 		'Programming Language :: Python :: 2.7'
 	],
-	packages=find_packages(),
+	packages=find_packages(exclude=['copy', 'itertools', 'os', 're', 'time']),
 	install_requires=[
-        'copy',
-        'itertools',
         'networkx',
         'numpy',
-        'os',
         'pandas',
-        're',
         'requests',
         'scipy',
-        'sklearn',
-        'time']
+        'sklearn']
 )

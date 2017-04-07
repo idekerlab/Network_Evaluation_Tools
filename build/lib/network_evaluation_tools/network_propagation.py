@@ -6,7 +6,6 @@ import time
 import numpy as np
 import scipy
 import copy
-import pandas as pd
 
 # Load network from file
 def load_network_file(network_file_path, delimiter='\t'):
