@@ -125,7 +125,7 @@ def AUPRC_Analysis(network_file, node_set_file, sample_p, AUPRC_iterations, core
 # Wrapper for shuffling input network and performing AUPRC analysis on each shuffled network and then compile results
 def null_AUPRC_Analysis_wrapper(network_file, node_set_file, sample_p, AUPRC_iterations, null_iterations, cores=1, save_results=False, outdir=None):
 	# Load network
-	network = prop.load_network(network_file, delimiter='\t')
+	network = prop.load_network_file(network_file, delimiter='\t')
 	# Load node set
 	node_sets = load_node_sets(node_set_file)
 	# Analyze shuffled networks

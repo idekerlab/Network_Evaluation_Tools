@@ -113,7 +113,7 @@ def KNN_joining(similarity_df, k=5, save_network=None):
 	starttime = time.time()
 	pairwise_sim_array = np.array(similarity_df)
 	np.fill_diagonal(pairwise_sim_array, -1)
-	diag_adjust_pairwise_sim_array = pd.DataFrame(pairwise_sim_array, index = similarity_df.index, columns = similarity_df.columns)
+	diag_adjust_pairwise_sim_array = pd.DataFrame(pairwise_sim_array, index = similarity_df.index, columns = similarity_df.columns).astype(float)
 	G = nx.Graph()
 	for pat in diag_adjust_pairwise_sim_array.index:
 		pat_knn = diag_adjust_pairwise_sim_array.ix[pat].sort_values(ascending=False).ix[:k].index
