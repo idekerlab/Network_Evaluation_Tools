@@ -24,10 +24,10 @@ setup(
 	],
 	packages=find_packages(exclude=['copy', 'itertools', 'os', 're', 'time']),
 	install_requires=[
-        'networkx',
-        'numpy',
-        'pandas',
-        'requests',
-        'scipy',
-        'sklearn']
+        'networkx>=1.11',
+        'numpy>=1.11.0',
+        'pandas>=0.19.0',
+        'requests>=2.13.0',
+        'scipy>=0.17.0',
+        'scikit-learn>=0.17.1']
 )

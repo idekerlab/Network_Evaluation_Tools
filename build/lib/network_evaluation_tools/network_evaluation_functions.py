@@ -9,6 +9,8 @@ import random
 import scipy.stats as stats
 import sklearn.metrics as metrics
 import network_propagation as prop
+from multiprocessing import Pool
+import os
 
 # Construct dictionary of node sets from input file
 def load_node_sets(node_set_file):
@@ -23,7 +25,7 @@ def load_node_sets(node_set_file):
 # Input: network - networkx formatted network
 def shuffle_network(network):
 	# Shuffle Network
-	starttime = time.time()
+	shuff_time = time.time()
 	edge_len=len(network.edges())
 	shuff_net=network.copy()
 	nx.double_edge_swap(shuff_net, nswap=edge_len, max_tries=edge_len*10)
@@ -97,7 +99,7 @@ def AUPRC_Analysis_initializer(global_prop_net):
 # Wapper for conducting AUPRC Analysis for input node set file and network (has parallel option)
 def AUPRC_Analysis(network_file, node_set_file, sample_p, AUPRC_iterations, cores=1, save_results=False, outdir=None):
 	# Load network
-	network = prop.load_network(network_file, delimiter='\t')
+	network = prop.load_network_file(network_file, delimiter='\t')
 	# Load node set
 	node_sets = load_node_sets(node_set_file)
 	# Calculate network influence matrix
@@ -111,26 +113,27 @@ def AUPRC_Analysis(network_file, node_set_file, sample_p, AUPRC_iterations, core
 		initializer_args = [prop_net]
 		pool = Pool(cores, AUPRC_Analysis_initializer, initializer_args)
 		# Construct parameter list to be passed
-		AUPRC_Analysis_params = [[node_sets, node_sets[node_set], sample_p, AUPRC_iterations] for node_set in node_sets]
+		AUPRC_Analysis_params = [[node_set, node_sets[node_set], sample_p, AUPRC_iterations] for node_set in node_sets]
 		# Run the AUPRC analysis for each geneset
-		AUPRC_results = pool.map(calculate_AUPRC_serial, AUPRC_Analysis_params)
+		AUPRC_results = pool.map(calculate_AUPRC_parallel, AUPRC_Analysis_params)
 		# Construct AUPRC results dictionary
 		node_set_AUPRCs = {result[0]:result[1] for result in AUPRC_results}
+	AUPRCs_table = pd.DataFrame(pd.Series(node_set_AUPRCs, name='AUPRC'))
 	if save_results == False:
-		return node_set_AUPRCs
+		return AUPRCs_table
 	else:
-		pd.Series(node_set_AUPRCs, name='AUPRC').to_csv(outdir+'AUPRC_results.csv')
-		return node_set_AUPRCs
+		AUPRCs_table.to_csv(outdir+'AUPRC_results.csv')
+		return AUPRCs_table
 
 # Wrapper for shuffling input network and performing AUPRC analysis on each shuffled network and then compile results
-def null_AUPRC_Analysis_wrapper(network_file, node_set_file, sample_p, AUPRC_iterations, null_iterations, cores=1, save_results=False, outdir=None):
+def null_AUPRC_Analysis(network_file, node_set_file, sample_p, AUPRC_iterations, null_iterations, cores=1, save_results=False, outdir=None):
 	# Load network
 	network = prop.load_network_file(network_file, delimiter='\t')
 	# Load node set
 	node_sets = load_node_sets(node_set_file)
 	# Analyze shuffled networks
 	null_AUPRCs = []
-	for i in range(len(null_iterations)):
+	for i in range(null_iterations):
 		shuff_net = shuffle_network(network)
 		prop_shuff_net = construct_prop_kernel(shuff_net)
 		# Calculate AUPRC values for each node set
@@ -142,13 +145,13 @@ def null_AUPRC_Analysis_wrapper(network_file, node_set_file, sample_p, AUPRC_ite
 			initializer_args = [prop_shuff_net]
 			pool = Pool(cores, AUPRC_Analysis_initializer, initializer_args)
 			# Construct parameter list to be passed
-			AUPRC_Analysis_params = [[node_sets, node_sets[node_set], sample_p, AUPRC_iterations] for node_set in node_sets]
+			AUPRC_Analysis_params = [[node_set, node_sets[node_set], sample_p, AUPRC_iterations] for node_set in node_sets]
 			# Run the AUPRC analysis for each geneset
-			AUPRC_results = pool.map(calculate_AUPRC_serial, AUPRC_Analysis_params)
+			AUPRC_results = pool.map(calculate_AUPRC_parallel, AUPRC_Analysis_params)
 			# Construct AUPRC results dictionary
 			node_set_AUPRCs = {result[0]:result[1] for result in AUPRC_results}
-		null_AUPRCs.append(pd.Series(node_set_AUPRCs, name='null AUPRC '+repr(i)))
-	null_AUPRCs_table = pd.cocnat(null_AUPRCs, axis=1)
+		null_AUPRCs.append(pd.Series(node_set_AUPRCs, name='null AUPRC '+repr(i+1)))
+	null_AUPRCs_table = pd.concat(null_AUPRCs, axis=1)
 
 	if save_results == False:
 		return null_AUPRCs_table
@@ -157,17 +160,19 @@ def null_AUPRC_Analysis_wrapper(network_file, node_set_file, sample_p, AUPRC_ite
 		return null_AUPRCs_table
 
 # Calculate robust z-score metric for a network on given node sets given results of AUPRC_Analysis_wrapper and null_AUPRC_Analysis_wrapper
-def AUPRC_Analysis_with_ZNorm(actual_net_AUPRCs, shuff_net_AUPRCs, save_results=False, outdir=None):
+def AUPRC_Analysis_with_ZNorm(actual_net_AUPRCs_path, shuff_net_AUPRCs_path, save_results=False, outdir=None):
 	# Read input data files and concat together:
-	shuff_net_AUPRCs = pd.read_csv(shuff_net_AUPRCs, index_col=0)
-	actual_net_AUPRCs = pd.read_csv(shuff_net_AUPRCs, index_col=0)
+	actual_net_AUPRCs = pd.read_csv(actual_net_AUPRCs_path, index_col=0)
+	shuff_net_AUPRCs = pd.read_csv(shuff_net_AUPRCs_path, index_col=0)
+	shuff_net_AUPRCs = shuff_net_AUPRCs.ix[actual_net_AUPRCs.index]
+	
 
 	k = 1/stats.norm.ppf(0.75)	# Mean absolute deviation scaling factor to make median absolute deviation behave similarly to the standard deviation of a normal distribution
 	# Compute robust z-score for composite network performances
 	AUPRC_null_median = shuff_net_AUPRCs.median(axis=1)
-	AUPRC_null_MAD = abs(actual_net_AUPRCs.ix[AUPRC_null_median.index].subtract(AUPRC_null_median, axis=0)).median(axis=1)
+	AUPRC_null_MAD = abs(shuff_net_AUPRCs.subtract(AUPRC_null_median, axis=0)).median(axis=1)
 	AUPRC_null_MAD_scaled = k*AUPRC_null_MAD
-	AUPRC_ZNorm = (shuff_net_AUPRCs.ix[AUPRC_null_median.index] - AUPRC_null_median).divide(AUPRC_null_MAD_scaled)
+	AUPRC_ZNorm = (actual_net_AUPRCs['AUPRC'] - AUPRC_null_median).divide(AUPRC_null_MAD_scaled)
 	if save_results == False:
 		return AUPRC_ZNorm
 	else:
