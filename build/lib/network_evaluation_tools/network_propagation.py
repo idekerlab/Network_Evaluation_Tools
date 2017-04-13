@@ -10,7 +10,7 @@ import pandas as pd
 
 # Load network from file
 def load_network_file(network_file_path, delimiter='\t'):
-	network = nx.read_edgelist(network_file_path, delimiter=delimiter)
+	network = nx.read_edgelist(network_file_path, delimiter=delimiter, data=False)
 	return network
 
 # Normalize network (or network subgraph) for random walk propagation
