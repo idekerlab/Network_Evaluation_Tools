@@ -8,41 +8,36 @@ import pandas as pd
 import random
 import scipy.stats as stats
 import sklearn.metrics as metrics
+import data_import_tools as dit
 import network_propagation as prop
 from multiprocessing import Pool
 import os
 import pickle as p
 
-# Construct dictionary of node sets from input file
-def load_node_sets(node_set_file, delimiter='\t'):
-	f = open(node_set_file)
-	node_set_lines = f.read().splitlines()
-	node_set_lines_split = [line.split(delimiter) for line in node_set_lines]
-	f.close()
-	node_sets = {node_set[0]:set(node_set[1:]) for node_set in node_set_lines_split}
-	return node_sets
-
 # Shuffle network in degree-preserving manner
 # Input: network - networkx formatted network
-def shuffle_network(network):
+def shuffle_network(network, verbose=False):
 	# Shuffle Network
 	shuff_time = time.time()
 	edge_len=len(network.edges())
 	shuff_net=network.copy()
 	nx.double_edge_swap(shuff_net, nswap=edge_len, max_tries=edge_len*10)
-	# Evaluate Network Similarity
-	shared_edges = len(set(network.edges()).intersection(set(shuff_net.edges())))
-	print 'Network shuffled:', time.time()-shuff_time, 'seconds. Edge similarity:', shared_edges/float(len(network.edges()))
+	if verbose:
+		# Evaluate Network Similarity
+		shared_edges = len(set(network.edges()).intersection(set(shuff_net.edges())))
+		print 'Network shuffled:', time.time()-shuff_time, 'seconds. Edge similarity:', shared_edges/float(len(network.edges()))
 	return shuff_net
 
 # Construct influence matrix of each network node propagated across network to use as kernel in AUPRC analysis
-def construct_prop_kernel(network):
+def construct_prop_kernel(network, verbose=False):
 	network_Fo = pd.DataFrame(data=np.identity(len(network.nodes())), index=network.nodes(), columns=network.nodes())
-	network_Fn = prop.closed_form_network_propagation(network, network_Fo)
+	network_Fn = prop.closed_form_network_propagation(network, network_Fo, verbose=verbose)
+	if verbose:
+		print 'Propagated network kernel constructed'
 	return network_Fn
 
 # Analyze AUPRC of node set recovery for given node set (parameter setup written for running in serial)
-def calculate_AUPRC_serial(prop_geno, p, n, node_set):
+def calculate_AUPRC_serial(prop_geno, p, n, node_set, verbose=False):
 	runtime = time.time()
 	intersect = [nodes for nodes in node_set if nodes in prop_geno.index]
 	AUPRCs = []
@@ -61,12 +56,13 @@ def calculate_AUPRC_serial(prop_geno, p, n, node_set):
 			precision.append(TP/float(y_actual.ix[:node].shape[0]))											 	# Calculate precision ( TP / TP+FP ) and add point to curve
 			recall.append(TP/float(TP+FN))																	  	# Calculate recall ( TP / TP+FN ) and add point to curve
 		AUPRCs.append(metrics.auc(recall, precision))													   		# Calculate Area Under Precision-Recall Curve (AUPRC)
-	print 'AUPRC Analysis for given node set', '('+repr(len(intersect))+' nodes in network) complete:', round(time.time()-runtime, 2), 'seconds.'
+	if verbose:
+		print 'AUPRC Analysis for given node set', '('+repr(len(intersect))+' nodes in network) complete:', round(time.time()-runtime, 2), 'seconds.'
 	return np.mean(AUPRCs)
 
 # Analyze AUPRC of node set recovery for given node set (parameter setup written for running in serial)
 def calculate_AUPRC_parallel(node_set_params):
-	node_set_name, node_set, p, n = node_set_params[0], node_set_params[1], node_set_params[2], node_set_params[3]
+	node_set_name, node_set, p, n, verbose = node_set_params[0], node_set_params[1], node_set_params[2], node_set_params[3], node_set_params[4]
 	runtime = time.time()
 	intersect = [nodes for nodes in node_set if nodes in prop_geno.index]
 	AUPRCs = []
@@ -85,7 +81,8 @@ def calculate_AUPRC_parallel(node_set_params):
 			precision.append(TP/float(y_actual.ix[:node].shape[0]))											 	# Calculate precision ( TP / TP+FP ) and add point to curve
 			recall.append(TP/float(TP+FN))																	  	# Calculate recall ( TP / TP+FN ) and add point to curve
 		AUPRCs.append(metrics.auc(recall, precision))													   		# Calculate Area Under Precision-Recall Curve (AUPRC)
-	print 'AUPRC Analysis for given node set', '('+repr(len(intersect))+' nodes in network) complete:', round(time.time()-runtime, 2), 'seconds.'
+	if verbose:
+		print 'AUPRC Analysis for given node set', '('+repr(len(intersect))+' nodes in network) complete:', round(time.time()-runtime, 2), 'seconds.'
 	return [node_set_name, np.mean(AUPRCs)]
 
 # Initializer function for defining global variables for each thread if running AUPRC Analysis in parallel
@@ -94,40 +91,44 @@ def parallel_analysis_initializer(global_prop_net):
 	prop_geno = global_prop_net
 
 # Wapper for conducting AUPRC Analysis for input node set file and network (has parallel option)
-def AUPRC_Analysis(network_file, node_set_file, sample_p, sub_sample_iterations, cores=1, save_results=False, outdir=None):
+def AUPRC_Analysis(network_file, node_set_file, sample_p, sub_sample_iterations, net_delim='\t', cores=1, verbose=False, save_path=None):
+	starttime=time.time()
 	# Load network
-	network = prop.load_network_file(network_file, delimiter='\t')
+	network = dit.load_network_file(network_file, delimiter=net_delim, verbose=verbose)
 	# Load node set
-	node_sets = load_node_sets(node_set_file)
+	node_sets = dit.load_node_sets(node_set_file, verbose=verbose)
 	# Calculate network influence matrix
-	prop_net = construct_prop_kernel(network)
+	prop_net = construct_prop_kernel(network, verbose=verbose)
 	# Calculate AUPRC values for each node set
 	if cores == 1:
 		# Calculate AUPRC values for node sets one at a time
-		node_set_AUPRCs = {node_set:calculate_AUPRC_serial(prop_net, sample_p, sub_sample_iterations, node_sets[node_set]) for node_set in node_sets}
+		node_set_AUPRCs = {node_set:calculate_AUPRC_serial(prop_net, sample_p, sub_sample_iterations, node_sets[node_set], verbose=False) for node_set in node_sets}
 	else:
 		# Initialize multiple threads for AUPRC analysis of multiple node sets
 		initializer_args = [prop_net]
-		pool = Pool(cores, AUPRC_Analysis_initializer, initializer_args)
+		pool = Pool(cores, parallel_analysis_initializer, initializer_args)
 		# Construct parameter list to be passed
-		AUPRC_Analysis_params = [[node_set, node_sets[node_set], sample_p, sub_sample_iterations] for node_set in node_sets]
+		AUPRC_Analysis_params = [[node_set, node_sets[node_set], sample_p, sub_sample_iterations, verbose] for node_set in node_sets]
 		# Run the AUPRC analysis for each geneset
 		AUPRC_results = pool.map(calculate_AUPRC_parallel, AUPRC_Analysis_params)
 		# Construct AUPRC results dictionary
 		node_set_AUPRCs = {result[0]:result[1] for result in AUPRC_results}
 	AUPRCs_table = pd.DataFrame(pd.Series(node_set_AUPRCs, name='AUPRC'))
-	if save_results == False:
+	if verbose:
+		print 'Network AUPRC Analysis complete:', round(time.time()-starttime, 2), 'seconds'	
+	if save_path == None:
 		return AUPRCs_table
 	else:
-		AUPRCs_table.to_csv(outdir+'AUPRC_results.csv')
+		AUPRCs_table.to_csv(save_path)
 		return AUPRCs_table
 
 # Wrapper for shuffling input network and performing AUPRC analysis on each shuffled network and then compile results
-def null_AUPRC_Analysis(network_file, node_set_file, sample_p, sub_sample_iterations, null_iterations, cores=1, save_results=False, outdir=None):
+def null_AUPRC_Analysis(network_file, node_set_file, sample_p, sub_sample_iterations, null_iterations, net_delim='\t', cores=1, verbose=False, save_path=None):
+	starttime=time.time()
 	# Load network
-	network = prop.load_network_file(network_file, delimiter='\t')
+	network = dit.load_network_file(network_file, delimiter=net_delim, verbose=verbose)
 	# Load node set
-	node_sets = load_node_sets(node_set_file)
+	node_sets = dit.load_node_sets(node_set_file, verbose=verbose)
 	# Analyze shuffled networks
 	null_AUPRCs = []
 	for i in range(null_iterations):
@@ -136,28 +137,32 @@ def null_AUPRC_Analysis(network_file, node_set_file, sample_p, sub_sample_iterat
 		# Calculate AUPRC values for each node set
 		if cores == 1:
 			# Calculate AUPRC values for node sets one at a time
-			node_set_AUPRCs = {node_set:calculate_AUPRC_serial(prop_shuff_net, sample_p, sub_sample_iterations, node_sets[node_set]) for node_set in node_sets}
+			node_set_AUPRCs = {node_set:calculate_AUPRC_serial(prop_shuff_net, sample_p, sub_sample_iterations, node_sets[node_set], verbose=False) for node_set in node_sets}
 		else:
 			# Initialize multiple threads for AUPRC analysis of multiple node sets
 			initializer_args = [prop_shuff_net]
 			pool = Pool(cores, parallel_analysis_initializer, initializer_args)
 			# Construct parameter list to be passed
-			AUPRC_Analysis_params = [[node_set, node_sets[node_set], sample_p, sub_sample_iterations] for node_set in node_sets]
+			AUPRC_Analysis_params = [[node_set, node_sets[node_set], sample_p, sub_sample_iterations, False] for node_set in node_sets]
 			# Run the AUPRC analysis for each geneset
 			AUPRC_results = pool.map(calculate_AUPRC_parallel, AUPRC_Analysis_params)
+			pool.close()
 			# Construct AUPRC results dictionary
 			node_set_AUPRCs = {result[0]:result[1] for result in AUPRC_results}
 		null_AUPRCs.append(pd.Series(node_set_AUPRCs, name='null AUPRC '+repr(i+1)))
+		if verbose: # All of the verbosity for each shuffled network is turned off to prevent cluttering of the log
+			print 'Shuffled Network', repr(i+1), 'AUPRC Analysis done'
+	if verbose:
+		print 'Null AUPRC Analysis complete:', round(time.time()-starttime, 2), 'seconds'
 	null_AUPRCs_table = pd.concat(null_AUPRCs, axis=1)
-
-	if save_results == False:
+	if save_path == None:
 		return null_AUPRCs_table
 	else:
-		null_AUPRCs_table.to_csv(outdir+'null_AUPRC_results.csv')
+		null_AUPRCs_table.to_csv(save_path)
 		return null_AUPRCs_table
 
 # Calculate robust z-score metric for a network on given node sets given results of AUPRC_Analysis_wrapper and null_AUPRC_Analysis_wrapper
-def AUPRC_Analysis_with_ZNorm(actual_net_AUPRCs_path, shuff_net_AUPRCs_path, save_results=False, outdir=None):
+def AUPRC_Analysis_with_ZNorm(actual_net_AUPRCs_path, shuff_net_AUPRCs_path, verbose=False, save_path=None):
 	# Read input data files and concat together:
 	actual_net_AUPRCs = pd.read_csv(actual_net_AUPRCs_path, index_col=0)
 	shuff_net_AUPRCs = pd.read_csv(shuff_net_AUPRCs_path, index_col=0)
@@ -168,10 +173,12 @@ def AUPRC_Analysis_with_ZNorm(actual_net_AUPRCs_path, shuff_net_AUPRCs_path, sav
 	AUPRC_null_MAD = abs(shuff_net_AUPRCs.subtract(AUPRC_null_median, axis=0)).median(axis=1)
 	AUPRC_null_MAD_scaled = k*AUPRC_null_MAD
 	AUPRC_ZNorm = (actual_net_AUPRCs['AUPRC'] - AUPRC_null_median).divide(AUPRC_null_MAD_scaled)
-	if save_results == False:
+	if verbose:
+		print 'AUPRC values z-normalized'
+	if save_path == None:
 		return AUPRC_ZNorm
 	else:
-		AUPRC_ZNorm.to_csv(outdir+'AUPRC_results_ZNorm.csv')
+		AUPRC_ZNorm.to_csv(save_path)
 		return AUPRC_ZNorm
 
 ################################################################################
@@ -180,7 +187,7 @@ def AUPRC_Analysis_with_ZNorm(actual_net_AUPRCs_path, shuff_net_AUPRCs_path, sav
 
 # Calculate confusion matrix (true positive, false negatives, false positives, true negatives) of node set recovery for given node set
 # The confusion matrix for every position on every AUPRC curve is returned/stored
-def calculate_confusion_matrix_serial(prop_geno, p, n, node_set_name, node_set):
+def calculate_confusion_matrix_serial(prop_geno, p, n, node_set_name, node_set, verbose=False):
 	runtime = time.time()
 	intersect = [nodes for nodes in node_set if nodes in prop_geno.index]
 	confusion_matrices = {}
@@ -202,14 +209,15 @@ def calculate_confusion_matrix_serial(prop_geno, p, n, node_set_name, node_set):
 			confusion_matrix['FP'].append(FP)
 			confusion_matrix['TN'].append(TN)
 		confusion_matrices[i]=confusion_matrix
-	print 'Confusion matrices calculated for node set', node_set_name, 'complete.', repr(len(intersect))+' nodes in network,', round(time.time()-runtime, 2), 'seconds.'
+	if verbose:
+		print 'Confusion matrices calculated for node set', node_set_name, 'complete.', repr(len(intersect))+' nodes in network,', round(time.time()-runtime, 2), 'seconds.'
 	return confusion_matrices
 
 # Calculate confusion matrix (true positive, false negatives, false positives, true negatives) of node set recovery for given node set 
 # The parameter setup is written for running in serial, only difference is that the name of the node set also must be passed, and prop_geno will be set as a global variable
 # The confusion matrix for every position on every AUPRC curve is returned/stored
 def calculate_confusion_matrix_parallel(node_set_params):
-	node_set_name, node_set, p, n = node_set_params[0], node_set_params[1], node_set_params[2], node_set_params[3]
+	node_set_name, node_set, p, n, verbose = node_set_params[0], node_set_params[1], node_set_params[2], node_set_params[3], node_set_params[4]
 	runtime = time.time()
 	intersect = [nodes for nodes in node_set if nodes in prop_geno.index]
 	confusion_matrices = {}
@@ -231,40 +239,44 @@ def calculate_confusion_matrix_parallel(node_set_params):
 			confusion_matrix['FP'].append(FP)
 			confusion_matrix['TN'].append(TN)
 		confusion_matrices[i]=confusion_matrix
-	print 'Confusion matrices calculated for node set', node_set_name, 'complete.', repr(len(intersect))+' nodes in network,', round(time.time()-runtime, 2), 'seconds.'
+	if verbose:
+		print 'Confusion matrices calculated for node set', node_set_name, 'complete.', repr(len(intersect))+' nodes in network,', round(time.time()-runtime, 2), 'seconds.'
 	return [node_set_name, confusion_matrices]
 
 # Wapper for calculating the confusion matrices for input node set file and network (has parallel option)
 # Not run for null network shuffles
-def confusion_matrix_construction_wrapper(network_file, node_set_file, sample_p, sub_sample_iterations, cores=1, save_results=False, outdir=None):
+def confusion_matrix_construction_wrapper(network_file, node_set_file, sample_p, sub_sample_iterations, cores=1, verbose=False, save_path=None):
+	starttime = time.time()
 	# Load network
-	network = prop.load_network_file(network_file, delimiter='\t')
+	network = dit.load_network_file(network_file, delimiter='\t')
 	# Load node set
-	node_sets = load_node_sets(node_set_file)
+	node_sets = dit.load_node_sets(node_set_file)
 	# Calculate network influence matrix
 	prop_net = construct_prop_kernel(network)
 	# Calculate confusion matrix values for each node set
 	if cores == 1:
 		# Calculate confusion matrix values for node sets one at a time
-		node_set_conf_mat = {node_set:calculate_confusion_matrix_serial(prop_net, sample_p, sub_sample_iterations, node_set, node_sets[node_set]) for node_set in node_sets}
+		node_set_conf_mat = {node_set:calculate_confusion_matrix_serial(prop_net, sample_p, sub_sample_iterations, node_set, node_sets[node_set], verbose=verbose) for node_set in node_sets}
 	else:
 		# Initialize multiple threads for confusion matrix analysis of multiple node sets
 		initializer_args = [prop_net]
 		pool = Pool(cores, parallel_analysis_initializer, initializer_args)
 		# Construct parameter list to be passed
-		conf_mat_Analysis_params = [[node_set, node_sets[node_set], sample_p, sub_sample_iterations] for node_set in node_sets]
+		conf_mat_Analysis_params = [[node_set, node_sets[node_set], sample_p, sub_sample_iterations, verbose] for node_set in node_sets]
 		# Run the confusion matrix analysis for each geneset
 		conf_mat_results = pool.map(calculate_confusion_matrix_parallel, conf_mat_Analysis_params)
 		# Construct confusion matrix results dictionary
 		node_set_conf_mat = {result[0]:result[1] for result in conf_mat_results}
-	if save_results == False:
+	if verbose:
+		print 'Network confusion matrix values calcualted:', round(time.time()-starttime, 2), 'seconds'	
+	if save_path == None:
 		return node_set_conf_mat
 	else:
-		p.dump(node_set_conf_mat, open(outdir+'confusion_matrix_results.p', 'wb'))
+		p.dump(node_set_conf_mat, open(save_path, 'wb'))
 		return node_set_conf_mat
 
 # Use confusion matrix results to calculate odds ratio, risk ratio, accuracy or precision at a given recall threshold
-def confusion_matrix_analysis(confusion_matrix_input, calculation, recall_threshold=0.9, save_results=False, outdir=None):
+def confusion_matrix_analysis(confusion_matrix_input, calculation, recall_threshold=0.9, verbose=False, save_path=None):
 	runtime = time.time()
 	# Load confusion matrix data
 	if type(confusion_matrix_input)!=dict:
@@ -304,11 +316,12 @@ def confusion_matrix_analysis(confusion_matrix_input, calculation, recall_thresh
 	# Return table of average/variance values for performance on all cohorts at given threshold
 	cohort_calculated_values_table = pd.concat([pd.Series(cohort_calculated_values_mean, name='Average '+calculation),
 												pd.Series(cohort_calculated_values_var, name=calculation+' Var')], axis=1)
-	print calculation, 'calculation completed for all cohorts', round(time.time()-runtime, 2), 'seconds.'
-	if save_results == False:
+	if verbose:
+		print calculation, 'calculation completed for all cohorts', round(time.time()-runtime, 2), 'seconds.'
+	if save_path == None:
 		return cohort_calculated_values_table
 	else:
-		cohort_calculated_values_table.to_csv(outdir+calculation+'_results.csv')
+		cohort_calculated_values_table.to_csv(save_path)
 		return cohort_calculated_values_table
 
 

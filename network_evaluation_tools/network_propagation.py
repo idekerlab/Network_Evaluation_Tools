@@ -8,11 +8,6 @@ import scipy
 import copy
 import pandas as pd
 
-# Load network from file
-def load_network_file(network_file_path, delimiter='\t'):
-	network = nx.read_edgelist(network_file_path, delimiter=delimiter, data=False)
-	return network
-
 # Normalize network (or network subgraph) for random walk propagation
 def normalize_network(network):
 	adj_mat = nx.adjacency_matrix(network)
@@ -38,15 +33,15 @@ def calculate_alpha(network, m=-0.17190024, b=0.7674828):
 		return alpha_val
 
 # Propagate binary matrix via closed form of random walk model
-def closed_form_network_propagation(network, binary_node_sets_matrix):
+def closed_form_network_propagation(network, binary_node_sets_matrix, verbose=False, save_path=None):
 	starttime=time.time()
 	# Calculate alpha from network (resulting alpha must be <1)
 	network_alpha = calculate_alpha(network)
-	print 'Alpha:', network_alpha
+	if verbose:
+	   print 'Alpha:', network_alpha
 	# Separate network into connected components and calculate propagation values of each sub-sample on each connected component
 	subgraphs = list(nx.connected_component_subgraphs(network))
 	prop_data_node_order = []
-	print 'Number of subgraphs:', len(subgraphs)
 	for i in range(len(subgraphs)):
 		subgraph = subgraphs[i]
 		# Get nodes of subgraph
@@ -66,21 +61,28 @@ def closed_form_network_propagation(network, binary_node_sets_matrix):
 		else:
 			subgraph_Fn = np.array(np.dot(term1, term2_inv))
 			prop_data = np.concatenate((prop_data, subgraph_Fn), axis=1)
-	print 'Closed Propagation:', time.time()-starttime, 'seconds'
+	if verbose:
+	   print 'Network Propagation Complete:', time.time()-starttime, 'seconds'
 	# Return propagated result as dataframe
 	prop_data_df = pd.DataFrame(data=prop_data, index = binary_node_sets_matrix.index, columns=prop_data_node_order)
-	return prop_data_df
+	if save_path==None:
+		return prop_data_df
+	else:
+		prop_data_df.to_csv(save_path)
+		return prop_data_df
 
 # Propagate binary matrix via iterative/power form of random walk model
-def iterative_network_propagation(network, binary_node_sets_matrix, max_iter=250, tol=1e-8):
+def iterative_network_propagation(network, binary_node_sets_matrix, max_iter=250, tol=1e-8, verbose=False, save_path=None):
 	starttime=time.time()
 	# Calculate alpha
 	network_alpha = calculate_alpha(network)
-	print 'Alpha:', network_alpha
+	if verbose:
+	   print 'Alpha:', network_alpha
 	# Normalize full network for propagation
 	starttime = time.time()
 	norm_adj_mat = normalize_network(network)
-	print "Network Normalized", time.time()-starttime, 'seconds'
+	if verbose:
+	   print "Network Normalized", time.time()-starttime, 'seconds'
 	# Initialize data structures for propagation
 	Fi = scipy.sparse.csr_matrix(binary_node_sets_matrix.T.ix[network.nodes()].fillna(0).astype(int).T)
 	Fn_prev = copy.deepcopy(Fi)
@@ -96,6 +98,11 @@ def iterative_network_propagation(network, binary_node_sets_matrix, max_iter=250
 		step_diff = (Fn_prev-Fn).toarray().flatten()
 		step_RMSE.append(np.sqrt(sum(step_diff**2) / len(step_diff)))
 		i+=1
-	print 'Iterative Propagation:', i, 'steps,', time.time()-starttime, 'seconds, step RMSE:', step_RMSE[-1]
+	if verbose:
+	   print 'Network Propagation Complete:', i, 'steps,', time.time()-starttime, 'seconds, step RMSE:', step_RMSE[-1]
 	prop_data_df = pd.DataFrame(data=Fn.todense(), index=binary_node_sets_matrix.index, columns = network.nodes())
-	return prop_data_df, step_RMSE[1:]
+	if save_path==None:
+		return prop_data_df, step_RMSE[1:]
+	else:
+		prop_data_df.to_csv(save_path)
+		return prop_data_df, step_RMSE[1:]
