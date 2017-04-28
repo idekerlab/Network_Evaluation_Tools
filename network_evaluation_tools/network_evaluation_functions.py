@@ -29,9 +29,9 @@ def shuffle_network(network, verbose=False):
 	return shuff_net
 
 # Construct influence matrix of each network node propagated across network to use as kernel in AUPRC analysis
-def construct_prop_kernel(network, verbose=False):
+def construct_prop_kernel(network, alpha=None, m=-0.17190024, b=0.7674828, verbose=False):
 	network_Fo = pd.DataFrame(data=np.identity(len(network.nodes())), index=network.nodes(), columns=network.nodes())
-	network_Fn = prop.closed_form_network_propagation(network, network_Fo, verbose=verbose)
+	network_Fn = prop.closed_form_network_propagation(network, network_Fo, alpha=alpha, m=m, b=b, verbose=verbose)
 	if verbose:
 		print 'Propagated network kernel constructed'
 	return network_Fn
@@ -91,14 +91,15 @@ def parallel_analysis_initializer(global_prop_net):
 	prop_geno = global_prop_net
 
 # Wapper for conducting AUPRC Analysis for input node set file and network (has parallel option)
-def AUPRC_Analysis(network_file, node_set_file, sample_p, sub_sample_iterations, net_delim='\t', cores=1, verbose=False, save_path=None):
+def AUPRC_Analysis(network_file, node_set_file, sample_p, sub_sample_iterations, 
+	alpha=None, m=-0.17190024, b=0.7674828, net_delim='\t', set_delim='\t', cores=1, verbose=False, save_path=None):
 	starttime=time.time()
 	# Load network
 	network = dit.load_network_file(network_file, delimiter=net_delim, verbose=verbose)
 	# Load node set
-	node_sets = dit.load_node_sets(node_set_file, verbose=verbose)
+	node_sets = dit.load_node_sets(node_set_file, delimiter=set_delim, verbose=verbose)
 	# Calculate network influence matrix
-	prop_net = construct_prop_kernel(network, verbose=verbose)
+	prop_net = construct_prop_kernel(network, alpha=alpha, m=m, b=b, verbose=verbose)
 	# Calculate AUPRC values for each node set
 	if cores == 1:
 		# Calculate AUPRC values for node sets one at a time
@@ -114,26 +115,29 @@ def AUPRC_Analysis(network_file, node_set_file, sample_p, sub_sample_iterations,
 		# Construct AUPRC results dictionary
 		node_set_AUPRCs = {result[0]:result[1] for result in AUPRC_results}
 	AUPRCs_table = pd.DataFrame(pd.Series(node_set_AUPRCs, name='AUPRC'))
-	if verbose:
-		print 'Network AUPRC Analysis complete:', round(time.time()-starttime, 2), 'seconds'	
 	if save_path == None:
+		if verbose:
+			print 'Network AUPRC Analysis complete:', round(time.time()-starttime, 2), 'seconds'			
 		return AUPRCs_table
 	else:
 		AUPRCs_table.to_csv(save_path)
+		if verbose:
+			print 'Network AUPRC Analysis complete:', round(time.time()-starttime, 2), 'seconds'			
 		return AUPRCs_table
 
 # Wrapper for shuffling input network and performing AUPRC analysis on each shuffled network and then compile results
-def null_AUPRC_Analysis(network_file, node_set_file, sample_p, sub_sample_iterations, null_iterations, net_delim='\t', cores=1, verbose=False, save_path=None):
+def null_AUPRC_Analysis(network_file, node_set_file, sample_p, sub_sample_iterations, null_iterations, 
+	alpha=None, m=-0.17190024, b=0.7674828, net_delim='\t', set_delim='\t', cores=1, verbose=False, save_path=None):
 	starttime=time.time()
 	# Load network
 	network = dit.load_network_file(network_file, delimiter=net_delim, verbose=verbose)
 	# Load node set
-	node_sets = dit.load_node_sets(node_set_file, verbose=verbose)
+	node_sets = dit.load_node_sets(node_set_file, delimiter=set_delim, verbose=verbose)
 	# Analyze shuffled networks
 	null_AUPRCs = []
 	for i in range(null_iterations):
 		shuff_net = shuffle_network(network)
-		prop_shuff_net = construct_prop_kernel(shuff_net)
+		prop_shuff_net = construct_prop_kernel(shuff_net, alpha=alpha, m=m, b=b)
 		# Calculate AUPRC values for each node set
 		if cores == 1:
 			# Calculate AUPRC values for node sets one at a time
@@ -152,13 +156,15 @@ def null_AUPRC_Analysis(network_file, node_set_file, sample_p, sub_sample_iterat
 		null_AUPRCs.append(pd.Series(node_set_AUPRCs, name='null AUPRC '+repr(i+1)))
 		if verbose: # All of the verbosity for each shuffled network is turned off to prevent cluttering of the log
 			print 'Shuffled Network', repr(i+1), 'AUPRC Analysis done'
-	if verbose:
-		print 'Null AUPRC Analysis complete:', round(time.time()-starttime, 2), 'seconds'
 	null_AUPRCs_table = pd.concat(null_AUPRCs, axis=1)
 	if save_path == None:
+		if verbose:
+			print 'Null AUPRC Analysis complete:', round(time.time()-starttime, 2), 'seconds'
 		return null_AUPRCs_table
 	else:
 		null_AUPRCs_table.to_csv(save_path)
+		if verbose:
+			print 'Null AUPRC Analysis complete:', round(time.time()-starttime, 2), 'seconds'		
 		return null_AUPRCs_table
 
 # Calculate robust z-score metric for a network on given node sets given results of AUPRC_Analysis_wrapper and null_AUPRC_Analysis_wrapper
@@ -173,12 +179,14 @@ def AUPRC_Analysis_with_ZNorm(actual_net_AUPRCs_path, shuff_net_AUPRCs_path, ver
 	AUPRC_null_MAD = abs(shuff_net_AUPRCs.subtract(AUPRC_null_median, axis=0)).median(axis=1)
 	AUPRC_null_MAD_scaled = k*AUPRC_null_MAD
 	AUPRC_ZNorm = (actual_net_AUPRCs['AUPRC'] - AUPRC_null_median).divide(AUPRC_null_MAD_scaled)
-	if verbose:
-		print 'AUPRC values z-normalized'
 	if save_path == None:
+		if verbose:
+			print 'AUPRC values z-normalized'		
 		return AUPRC_ZNorm
 	else:
 		AUPRC_ZNorm.to_csv(save_path)
+		if verbose:
+			print 'AUPRC values z-normalized'				
 		return AUPRC_ZNorm
 
 ################################################################################
@@ -245,14 +253,15 @@ def calculate_confusion_matrix_parallel(node_set_params):
 
 # Wapper for calculating the confusion matrices for input node set file and network (has parallel option)
 # Not run for null network shuffles
-def confusion_matrix_construction_wrapper(network_file, node_set_file, sample_p, sub_sample_iterations, cores=1, verbose=False, save_path=None):
+def confusion_matrix_construction_wrapper(network_file, node_set_file, sample_p, sub_sample_iterations, 
+	alpha=None, m=-0.17190024, b=0.7674828, net_delim='\t', set_delim='\t', cores=1, verbose=False, save_path=None):
 	starttime = time.time()
 	# Load network
-	network = dit.load_network_file(network_file, delimiter='\t')
+	network = dit.load_network_file(network_file, delimiter=net_delim, verbose=verbose)
 	# Load node set
-	node_sets = dit.load_node_sets(node_set_file)
+	node_sets = dit.load_node_sets(node_set_file, delimiter=set_delim, verbose=verbose)
 	# Calculate network influence matrix
-	prop_net = construct_prop_kernel(network)
+	prop_net = construct_prop_kernel(network, alpha=alpha, m=m, b=b)
 	# Calculate confusion matrix values for each node set
 	if cores == 1:
 		# Calculate confusion matrix values for node sets one at a time
@@ -267,12 +276,14 @@ def confusion_matrix_construction_wrapper(network_file, node_set_file, sample_p,
 		conf_mat_results = pool.map(calculate_confusion_matrix_parallel, conf_mat_Analysis_params)
 		# Construct confusion matrix results dictionary
 		node_set_conf_mat = {result[0]:result[1] for result in conf_mat_results}
-	if verbose:
-		print 'Network confusion matrix values calcualted:', round(time.time()-starttime, 2), 'seconds'	
 	if save_path == None:
+		if verbose:
+			print 'Network confusion matrix values calcualted:', round(time.time()-starttime, 2), 'seconds'			
 		return node_set_conf_mat
 	else:
 		p.dump(node_set_conf_mat, open(save_path, 'wb'))
+		if verbose:
+			print 'Network confusion matrix values calcualted:', round(time.time()-starttime, 2), 'seconds'					
 		return node_set_conf_mat
 
 # Use confusion matrix results to calculate odds ratio, risk ratio, accuracy or precision at a given recall threshold
@@ -316,12 +327,14 @@ def confusion_matrix_analysis(confusion_matrix_input, calculation, recall_thresh
 	# Return table of average/variance values for performance on all cohorts at given threshold
 	cohort_calculated_values_table = pd.concat([pd.Series(cohort_calculated_values_mean, name='Average '+calculation),
 												pd.Series(cohort_calculated_values_var, name=calculation+' Var')], axis=1)
-	if verbose:
-		print calculation, 'calculation completed for all cohorts', round(time.time()-runtime, 2), 'seconds.'
 	if save_path == None:
+		if verbose:
+			print calculation, 'calculation completed for all cohorts', round(time.time()-runtime, 2), 'seconds.'
 		return cohort_calculated_values_table
 	else:
 		cohort_calculated_values_table.to_csv(save_path)
+		if verbose:
+			print calculation, 'calculation completed for all cohorts', round(time.time()-runtime, 2), 'seconds.'		
 		return cohort_calculated_values_table
 
 

@@ -24,7 +24,9 @@ setup(
 	],
 	packages=find_packages(exclude=['copy', 'itertools', 'os', 're', 'time']),
 	install_requires=[
+        'argparse>=1.1',
         'networkx>=1.11',
+        'numba>=0.32.0',
         'numpy>=1.11.0',
         'pandas>=0.19.0',
         'requests>=2.13.0',
