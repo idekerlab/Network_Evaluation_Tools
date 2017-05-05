@@ -21,11 +21,15 @@ def shuffle_network(network, verbose=False):
 	shuff_time = time.time()
 	edge_len=len(network.edges())
 	shuff_net=network.copy()
-	nx.double_edge_swap(shuff_net, nswap=edge_len, max_tries=edge_len*10)
+	try:
+		nx.double_edge_swap(shuff_net, nswap=edge_len, max_tries=edge_len*10)
+	except:
+		if verbose:
+			print 'Note: Maximum number of swap attempts ('+repr(edge_len*10)+') exceeded before desired swaps achieved ('+repr(edge_len)+').'
 	if verbose:
 		# Evaluate Network Similarity
 		shared_edges = len(set(network.edges()).intersection(set(shuff_net.edges())))
-		print 'Network shuffled:', time.time()-shuff_time, 'seconds. Edge similarity:', shared_edges/float(len(network.edges()))
+		print 'Network shuffled:', time.time()-shuff_time, 'seconds. Edge similarity:', shared_edges/float(edge_len)
 	return shuff_net
 
 # Construct influence matrix of each network node propagated across network to use as kernel in AUPRC analysis

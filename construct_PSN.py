@@ -15,9 +15,9 @@ def alpha_range(x):
 
 # Checking valid integer values (for all values that must be >0)
 def positive_int(x):
-    x = int(value)
+    x = int(x)
     if x <= 0:
-         raise argparse.ArgumentTypeError("%s must be a positive integer" % value)
+         raise argparse.ArgumentTypeError("%s must be a positive integer" % x)
     return x
 
 # Valid file path check (Does not check file formatting, but checks if given path exists and is readable)
@@ -32,7 +32,7 @@ def valid_infile(in_file):
 # Valid output directory path check (Checks if the output directory path can be found and written to by removing given filename from full path)
 # Note: This uses '/' character for splitting pathnames on Linux and Mac OSX. The character may need to be changed to '\' for Windows executions
 def valid_outfile(out_file):
-	outdir = '/'.join(outfile.split('/')[:-1])
+	outdir = '/'.join(out_file.split('/')[:-1])
 	if not os.path.isdir(outdir):
 		raise argparse.ArgumentTypeError("{0} is not a valid output directory".format(outdir))
 	if os.access(outdir, os.W_OK):
@@ -65,6 +65,8 @@ if __name__ == "__main__":
 		help='Slope of linear alpha calculation model used if no alpha value given.')
 	parser.add_argument('-mm', '--min_muts', type=positive_int, default=1, required=False,
 		help='Minimum number of mutations for a sample on the network to be considered in the patient similarity network.')
+	parser.add_argument('-k', '--knn', type=positive_int, default=1, required=False,
+		help='Number of nearest neighbors to join in patient similarity network.')	
 	parser.add_argument('-v', '--verbose', default=False, action="store_true", required=False,
 		help='Verbosity flag for reporting on patient similarity network construction steps.')
 	parser.add_argument('-sp', '--save_propagation', type=valid_outfile, default=None, required=False,
@@ -77,5 +79,5 @@ if __name__ == "__main__":
 	PSN = psn.PSN_Constructor(args.network_path, args.mutation_data, 
 		net_delim=args.net_filedelim, mut_mat_filetype=args.mut_filetype, mut_mat_delim=args.mut_filedelim, 
 		alpha=args.alpha, m=args.alpha_model_m, b=args.alpha_model_b, 
-		min_mut=args.min_muts, verbose=args.verbose, similarity=args.similarity,
+		k=args.knn, min_mut=args.min_muts, verbose=args.verbose, similarity=args.similarity,
 		save_propagation=args.save_propagation, save_similarity=args.save_similarity, save_network=args.network_save_file)

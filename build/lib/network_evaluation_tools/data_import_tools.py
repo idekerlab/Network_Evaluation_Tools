@@ -18,11 +18,15 @@ def load_network_file(network_file_path, delimiter='\t', verbose=False):
 
 # Get full paths to all networks in directory with a given file name structure:
 # e.g. If filename = 'BIND_Symbol.sif', then network_name='BIND', suffix='_Symbol', ext='.sif
-def get_networks(wd, suffix, file_ext='.sif'):
+def get_networks(wd, suffix=None, file_ext='.sif'):
 	network_files = {}
 	for fn in os.listdir(wd):
-		if fn.endswith(file_ext) and fn.split(file_ext)[0].endswith(suffix):
-			network_files[fn.split(suffix)[0]]=wd+fn
+		if suffix==None:
+			if fn.endswith(file_ext):
+				network_files[fn.split(file_ext)[0]]=wd+fn			
+		else:
+			if fn.endswith(file_ext) and fn.split(file_ext)[0].endswith(suffix):
+				network_files[fn.split(suffix)[0]]=wd+fn
 	return network_files
 
 # Companion function with get_networks(), loads all of the network files found in a directory

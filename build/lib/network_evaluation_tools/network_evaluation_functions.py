@@ -21,11 +21,15 @@ def shuffle_network(network, verbose=False):
 	shuff_time = time.time()
 	edge_len=len(network.edges())
 	shuff_net=network.copy()
-	nx.double_edge_swap(shuff_net, nswap=edge_len, max_tries=edge_len*10)
+	try:
+		nx.double_edge_swap(shuff_net, nswap=edge_len, max_tries=edge_len*10)
+	except:
+		if verbose:
+			print 'Note: Maximum number of swap attempts ('+repr(edge_len*10)+') exceeded before desired swaps achieved ('+repr(edge_len)+').'
 	if verbose:
 		# Evaluate Network Similarity
 		shared_edges = len(set(network.edges()).intersection(set(shuff_net.edges())))
-		print 'Network shuffled:', time.time()-shuff_time, 'seconds. Edge similarity:', shared_edges/float(len(network.edges()))
+		print 'Network shuffled:', time.time()-shuff_time, 'seconds. Edge similarity:', shared_edges/float(edge_len)
 	return shuff_net
 
 # Construct influence matrix of each network node propagated across network to use as kernel in AUPRC analysis
@@ -91,12 +95,13 @@ def parallel_analysis_initializer(global_prop_net):
 	prop_geno = global_prop_net
 
 # Wapper for conducting AUPRC Analysis for input node set file and network (has parallel option)
-def AUPRC_Analysis(network_file, node_set_file, sample_p, sub_sample_iterations, alpha=None, m=-0.17190024, b=0.7674828, net_delim='\t', cores=1, verbose=False, save_path=None):
+def AUPRC_Analysis(network_file, node_set_file, sample_p, sub_sample_iterations, 
+	alpha=None, m=-0.17190024, b=0.7674828, net_delim='\t', set_delim='\t', cores=1, verbose=False, save_path=None):
 	starttime=time.time()
 	# Load network
 	network = dit.load_network_file(network_file, delimiter=net_delim, verbose=verbose)
 	# Load node set
-	node_sets = dit.load_node_sets(node_set_file, verbose=verbose)
+	node_sets = dit.load_node_sets(node_set_file, delimiter=set_delim, verbose=verbose)
 	# Calculate network influence matrix
 	prop_net = construct_prop_kernel(network, alpha=alpha, m=m, b=b, verbose=verbose)
 	# Calculate AUPRC values for each node set
@@ -125,12 +130,13 @@ def AUPRC_Analysis(network_file, node_set_file, sample_p, sub_sample_iterations,
 		return AUPRCs_table
 
 # Wrapper for shuffling input network and performing AUPRC analysis on each shuffled network and then compile results
-def null_AUPRC_Analysis(network_file, node_set_file, sample_p, sub_sample_iterations, null_iterations, alpha=None, m=-0.17190024, b=0.7674828, net_delim='\t', cores=1, verbose=False, save_path=None):
+def null_AUPRC_Analysis(network_file, node_set_file, sample_p, sub_sample_iterations, null_iterations, 
+	alpha=None, m=-0.17190024, b=0.7674828, net_delim='\t', set_delim='\t', cores=1, verbose=False, save_path=None):
 	starttime=time.time()
 	# Load network
 	network = dit.load_network_file(network_file, delimiter=net_delim, verbose=verbose)
 	# Load node set
-	node_sets = dit.load_node_sets(node_set_file, verbose=verbose)
+	node_sets = dit.load_node_sets(node_set_file, delimiter=set_delim, verbose=verbose)
 	# Analyze shuffled networks
 	null_AUPRCs = []
 	for i in range(null_iterations):
@@ -251,12 +257,13 @@ def calculate_confusion_matrix_parallel(node_set_params):
 
 # Wapper for calculating the confusion matrices for input node set file and network (has parallel option)
 # Not run for null network shuffles
-def confusion_matrix_construction_wrapper(network_file, node_set_file, sample_p, sub_sample_iterations, m=-0.17190024, b=0.7674828, cores=1, verbose=False, save_path=None):
+def confusion_matrix_construction_wrapper(network_file, node_set_file, sample_p, sub_sample_iterations, 
+	alpha=None, m=-0.17190024, b=0.7674828, net_delim='\t', set_delim='\t', cores=1, verbose=False, save_path=None):
 	starttime = time.time()
 	# Load network
-	network = dit.load_network_file(network_file, delimiter='\t')
+	network = dit.load_network_file(network_file, delimiter=net_delim, verbose=verbose)
 	# Load node set
-	node_sets = dit.load_node_sets(node_set_file)
+	node_sets = dit.load_node_sets(node_set_file, delimiter=set_delim, verbose=verbose)
 	# Calculate network influence matrix
 	prop_net = construct_prop_kernel(network, alpha=alpha, m=m, b=b)
 	# Calculate confusion matrix values for each node set

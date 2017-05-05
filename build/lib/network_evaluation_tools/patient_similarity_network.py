@@ -9,7 +9,7 @@ import numpy as np
 from sklearn.decomposition import PCA
 import data_import_tools as dit
 import network_propagation as prop
-from numba import jit
+from numba import jit, vectorize
 
 # Mean-centering of propagated somatic mutation profiles
 def mean_center_data(propagated_sm_matrix, verbose=False):
@@ -79,7 +79,7 @@ def pairwise_jaccard_numba_full(data):
 		v1 = data[i]
 		for j in range(i+1, rows):
 			# Patient 2 propagated profile
-			v2 = data[j]
+			v2 = data[j]		
 			# Calculate generalized jaccard value
 			min_sum = 0
 			max_sum = 0
@@ -92,10 +92,38 @@ def pairwise_jaccard_numba_full(data):
 	jaccard_full = jaccards+jaccards_T+I
 	return jaccard_full		
 
+# @vectorize(["float64(float64,float64)", "float32(float32,float32)"], target='parallel')
+# def min_vectorize(x, y):
+# 	return min(x,y)
+
+# @vectorize(["float64(float64,float64)", "float32(float32,float32)"], target='parallel')
+# def max_vectorize(x, y):
+# 	return max(x,y)
+
+# # Internal sped-up function for determining the pairwise generalized jaccard similarity between two rows
+# @jit(nopython=True)
+# def pairwise_jaccard_numba_full2(data):
+# 	rows = len(data)
+# 	cols = len(data[0])
+# 	jaccards = np.zeros((rows,rows))
+# 	for i in range(rows):
+# 		# Patient 1 propagated profile
+# 		v1 = data[i, :]
+# 		for j in range(i+1, rows):
+# 			# Patient 2 propagated profile
+# 			v2 = data[j, :]			
+			
+# 			jaccards[i,j] = np.sum(min_vectorize(v1,v2)) / np.sum(max_vectorize(v1,v2))
+
+# 	jaccards_T = jaccards.T
+# 	I = np.identity(rows)
+# 	jaccard_full = jaccards+jaccards_T+I
+# 	return jaccard_full		
+
 # Wrapper function for determining pairwise jaccard similarity between two rows and handles input/result formatting
 def pairwise_jaccard(propagated_sm_matrix, verbose=False, save_path=None):
 	starttime = time.time()
-	data_array = np.array(propagated_sm_matrix)
+	data_array = np.ascontiguousarray(propagated_sm_matrix)
 	jaccard_full = pairwise_jaccard_numba_full(data_array)
 	jaccard_df = pd.DataFrame(jaccard_full, index = propagated_sm_matrix.index, columns=propagated_sm_matrix.index)
 	if save_path==None:
@@ -152,7 +180,7 @@ def KNN_joining(similarity_df, k=5, verbose=False, save_path=None):
 # Wrapper function for construction patient similarity network
 # binary_mut_mat_path can be a single file or directory, if directory given, it will concatenate all files in that directory
 def PSN_Constructor(network_path, binary_mut_mat_path, 
-					alpha=None, m=-0.17190024, b=0.7674828, net_delim='\t', mut_mat_filetype='matrix', mut_mat_delim='\t', min_mut=1, verbose=False,
+					alpha=None, m=-0.17190024, b=0.7674828, net_delim='\t', mut_mat_filetype='matrix', mut_mat_delim='\t', min_mut=1, k=5, verbose=False,
 					similarity='spearman', save_propagation=None, save_similarity=None, save_network=None):
 	# Load network
 	network = dit.load_network_file(network_path, delimiter=net_delim, verbose=verbose)
@@ -189,7 +217,7 @@ def PSN_Constructor(network_path, binary_mut_mat_path,
 	prop_centered_PCA_spearman_znorm = symmetric_z_norm(prop_centered_PCA_spearman, verbose=verbose)
 	# Construct PSN graph
 	if save_network==None:
-		PSN = KNN_joining(prop_centered_PCA_spearman_znorm, verbose=verbose)
+		PSN = KNN_joining(prop_centered_PCA_spearman_znorm, k=k, verbose=verbose)
 	else:
-		PSN = KNN_joining(prop_centered_PCA_spearman_znorm, verbose=verbose, save_path=save_network)
+		PSN = KNN_joining(prop_centered_PCA_spearman_znorm, k=k, verbose=verbose, save_path=save_network)
 	return PSN

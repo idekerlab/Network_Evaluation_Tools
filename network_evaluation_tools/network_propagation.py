@@ -34,13 +34,14 @@ def calculate_alpha(network, m, b):
 		return alpha_val
 
 # Closed form random-walk propagation (as seen in HotNet2) for each subgraph: Ft = (1-alpha)*Fo * (I-alpha*norm_adj_mat)^-1
+# Concatenate to previous set of subgraphs
 @jit(nopython=True)
-def fast_random_walk(alpha, binary_mat, adj_mat_norm):
-    term1=(1-alpha)*binary_mat
-    term2=np.identity(binary_mat.shape[1])-alpha*adj_mat_norm
-    term2_inv = np.linalg.inv(term2)
-    random_walk = np.dot(term1, term2_inv)
-    return random_walk
+def fast_random_walk(alpha, binary_mat, subgraph_norm, prop_data):
+	term1=(1-alpha)*binary_mat
+	term2=np.identity(binary_mat.shape[1])-alpha*subgraph_norm
+	term2_inv = np.linalg.inv(term2)
+	subgraph_prop = np.dot(term1, term2_inv)
+	return np.concatenate((prop_data, subgraph_prop), axis=1)
 
 # Wrapper for random walk propagation of full network by subgraphs
 def closed_form_network_propagation(network, binary_matrix, alpha=None, m=-0.17190024, b=0.7674828, verbose=False, save_path=None):
@@ -54,24 +55,23 @@ def closed_form_network_propagation(network, binary_matrix, alpha=None, m=-0.171
 		print 'Alpha:', network_alpha
 	# Separate network into connected components and calculate propagation values of each sub-sample on each connected component
 	subgraphs = list(nx.connected_component_subgraphs(network))
-	prop_data_node_order = []
-	for i in range(len(subgraphs)):
-		subgraph = subgraphs[i]
-		# Get nodes of subgraph
+	# Initialize propagation results by propagating first subgraph
+	subgraph = subgraphs[0]
+	subgraph_nodes = subgraph.nodes()
+	prop_data_node_order = list(subgraph_nodes)
+	binary_matrix_filt = np.array(binary_matrix.T.ix[subgraph_nodes].fillna(0).T)
+	subgraph_norm = normalize_network(subgraph).toarray()	
+	prop_data_empty = np.zeros((binary_matrix_filt.shape[0], 1))
+	prop_data = fast_random_walk(network_alpha, binary_matrix_filt, subgraph_norm, prop_data_empty)
+	# Get propagated results for remaining subgraphs
+	for subgraph in subgraphs[1:]:
 		subgraph_nodes = subgraph.nodes()
 		prop_data_node_order = prop_data_node_order + subgraph_nodes
-		# Filter binary_matrix by nodes of subgraph
-		binary_matrix_filt = np.array(binary_matrix.T.ix[subgraph_nodes].fillna(0).astype(int).T)
-		# Normalize each network subgraph for propagation
-		subgraph_norm = normalize_network(subgraph)
-		# Propagate and concatenate results 
-		if i==0:
-			prop_data = fast_random_walk(network_alpha, binary_matrix_filt, subgraph_norm.toarray())
-		else:
-			subgraph_Fn = fast_random_walk(network_alpha, binary_matrix_filt, subgraph_norm.toarray())
-			prop_data = np.concatenate((prop_data, subgraph_Fn), axis=1)
+		binary_matrix_filt = np.array(binary_matrix.T.ix[subgraph_nodes].fillna(0).T)
+		subgraph_norm = normalize_network(subgraph).toarray()
+		prop_data = fast_random_walk(network_alpha, binary_matrix_filt, subgraph_norm, prop_data)
 	# Return propagated result as dataframe
-	prop_data_df = pd.DataFrame(data=prop_data, index = binary_matrix.index, columns=prop_data_node_order)
+	prop_data_df = pd.DataFrame(data=prop_data[:,1:], index = binary_matrix.index, columns=prop_data_node_order)
 	if save_path==None:
 		if verbose:
 			print 'Network Propagation Complete:', time.time()-starttime, 'seconds'		
