@@ -9,7 +9,7 @@ import numpy as np
 from sklearn.decomposition import PCA
 import data_import_tools as dit
 import network_propagation as prop
-from numba import jit, vectorize
+from numba import jit, guvectorize
 
 # Mean-centering of propagated somatic mutation profiles
 def mean_center_data(propagated_sm_matrix, verbose=False):
@@ -38,93 +38,28 @@ def perform_PCA(propagated_sm_matrix, t=0.9, verbose=False):
 				print 'PCA complete:', time.time()-starttime, 'seconds. Precise explained variance:', explained_variance_cumsum
 			return propagated_profile_pca.iloc[:,:i]
 
-# Pairwise spearman or pearson correlation of rows in given data
-def pairwise_correlation(propagated_sm_matrix, similarity='spearman', verbose=False, save_path=None):
-	starttime = time.time()
-	# Convert rows of patient profiles to rankings and change to array
-	if similarity=='pearson':
-		data_array = propagated_sm_matrix.as_matrix()
-	else:
-		data_rank_df = propagated_sm_matrix.rank(axis=1)
-		data_array = data_rank_df.as_matrix()
-	# Fast pearson correlation calculation on either ranked or un-ranked data
-	data_array_dot = data_array.dot(data_array.T)
-	e_xy = data_array_dot / data_array.shape[1]
-	data_array_means = np.asarray(data_array.mean(1)).flatten()
-	e_x_e_y = np.asarray(np.matrix(data_array_means.reshape(-1, 1)) * np.matrix(data_array_means.reshape(1, -1)))
-	corr = e_xy - e_x_e_y
-	std = np.sqrt(np.asarray((data_array * data_array).sum(1)).flatten() / data_array.shape[1] - np.power(np.asarray(data_array.mean(1)).flatten(), 2))
-	corr = corr / std.reshape(1, -1)
-	corr = corr / std.reshape(-1, 1)
-	# Convert pairwise correlation array to dataframe
-	corr_df = pd.DataFrame(corr, index=propagated_sm_matrix.index, columns=propagated_sm_matrix.index)
-	if save_path==None:
-		if verbose:
-			print 'Pairwise correlation calculation complete:', time.time()-starttime, 'seconds'		
-		return corr_df
-	else:
-		corr_df.to_csv(save_path)
-		if verbose:
-			print 'Pairwise correlation calculation complete:', time.time()-starttime, 'seconds'		
-		return corr_df
-
-# Internal sped-up function for determining the pairwise generalized jaccard similarity between two rows
-@jit(nopython=True)
-def pairwise_jaccard_numba_full(data):
-	rows = len(data)
-	cols = len(data[0])
-	jaccards = np.zeros((rows,rows))
-	for i in range(rows):
-		# Patient 1 propagated profile
-		v1 = data[i]
-		for j in range(i+1, rows):
-			# Patient 2 propagated profile
-			v2 = data[j]		
-			# Calculate generalized jaccard value
-			min_sum = 0
-			max_sum = 0
-			for k in range(cols):
-				min_sum = min_sum+min(v1[k], v2[k])
-				max_sum = max_sum+max(v1[k], v2[k])
-			jaccards[i][j] = min_sum / max_sum
-	jaccards_T = jaccards.T
-	I = np.identity(rows)
-	jaccard_full = jaccards+jaccards_T+I
-	return jaccard_full		
-
-# @vectorize(["float64(float64,float64)", "float32(float32,float32)"], target='parallel')
-# def min_vectorize(x, y):
-# 	return min(x,y)
-
-# @vectorize(["float64(float64,float64)", "float32(float32,float32)"], target='parallel')
-# def max_vectorize(x, y):
-# 	return max(x,y)
-
-# # Internal sped-up function for determining the pairwise generalized jaccard similarity between two rows
-# @jit(nopython=True)
-# def pairwise_jaccard_numba_full2(data):
-# 	rows = len(data)
-# 	cols = len(data[0])
-# 	jaccards = np.zeros((rows,rows))
-# 	for i in range(rows):
-# 		# Patient 1 propagated profile
-# 		v1 = data[i, :]
-# 		for j in range(i+1, rows):
-# 			# Patient 2 propagated profile
-# 			v2 = data[j, :]			
-			
-# 			jaccards[i,j] = np.sum(min_vectorize(v1,v2)) / np.sum(max_vectorize(v1,v2))
-
-# 	jaccards_T = jaccards.T
-# 	I = np.identity(rows)
-# 	jaccard_full = jaccards+jaccards_T+I
-# 	return jaccard_full		
+# Internal sped-up / parallelized function for determining the pairwise generalized jaccard similarity between two rows
+# Input is numpy array of patients-by-gene propagation (or binary) values
+@guvectorize(['void(float64[:], float64[:,:], float64[:])'], '(n),(n,p)->(p)', nopython=True, target='parallel')
+def jaccard_gu(data, data_transpose, jaccards):
+    n, p = data_transpose.shape
+    for j in range(p):
+        min_sum = 0
+        for k in range(n):
+            min_sum += min(data[k], data_transpose[k, j])
+        jaccards[j] = min_sum
+     
+    for j in range(p):
+        max_sum = 0
+        for k in range(n):
+            max_sum += max(data[k], data_transpose[k, j])
+        jaccards[j] = jaccards[j] / max_sum
 
 # Wrapper function for determining pairwise jaccard similarity between two rows and handles input/result formatting
 def pairwise_jaccard(propagated_sm_matrix, verbose=False, save_path=None):
 	starttime = time.time()
 	data_array = np.ascontiguousarray(propagated_sm_matrix)
-	jaccard_full = pairwise_jaccard_numba_full(data_array)
+	jaccard_full = jaccard_gu(data_array, data_array.T)
 	jaccard_df = pd.DataFrame(jaccard_full, index = propagated_sm_matrix.index, columns=propagated_sm_matrix.index)
 	if save_path==None:
 		if verbose:
