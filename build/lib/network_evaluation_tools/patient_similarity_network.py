@@ -18,7 +18,7 @@ def mean_center_data(propagated_sm_matrix, verbose=False):
 	return propagated_sm_matrix - propagated_sm_matrix.mean()
 
 # PCA reduction (up to threshold t of explained variance) of mean-centered, propagated somatic mutation profiles
-def perform_PCA(propagated_sm_matrix, t=0.9, verbose=False):
+def perform_PCA(propagated_sm_matrix, n=None, t=0.9, verbose=False):
 	starttime = time.time()
 	# Construct PCA model
 	pca = PCA()
@@ -27,16 +27,20 @@ def perform_PCA(propagated_sm_matrix, t=0.9, verbose=False):
 	propagated_profile_pca = pd.DataFrame(data=fit_transform_res, index=propagated_sm_matrix.index)
 	PCs=['PC'+repr(i+1) for i in propagated_profile_pca.columns]
 	propagated_profile_pca.columns = PCs
-	# Calculate the variance explained by each PC
-	explained_variance_ratio = pca.explained_variance_ratio_
-	# Reduce propagated somatic mutation profiles to capture a specific proportion of the data's variance (t)
-	explained_variance_cumsum = 0
-	for i in range(len(explained_variance_ratio)):
-		explained_variance_cumsum = explained_variance_cumsum + explained_variance_ratio[i]
-		if explained_variance_cumsum >= t:
-			if verbose:
-				print 'PCA complete:', time.time()-starttime, 'seconds. Precise explained variance:', explained_variance_cumsum
-			return propagated_profile_pca.iloc[:,:i]
+	# Return number of PCs if given, otherwise return reduced matrix by explained variance threshold
+	if n==None:
+		# Calculate the variance explained by each PC
+		explained_variance_ratio = pca.explained_variance_ratio_
+		# Reduce propagated somatic mutation profiles to capture a specific proportion of the data's variance (t)
+		explained_variance_cumsum = 0
+		for i in range(len(explained_variance_ratio)):
+			explained_variance_cumsum = explained_variance_cumsum + explained_variance_ratio[i]
+			if explained_variance_cumsum >= t:
+				if verbose:
+					print 'PCA complete:', time.time()-starttime, 'seconds. Precise explained variance:', explained_variance_cumsum
+				return propagated_profile_pca.iloc[:,:i]
+	else:
+		return propagated_profile_pca.iloc[:,:n]
 
 # Internal sped-up / parallelized function for determining the pairwise generalized jaccard similarity between two rows
 # Input is numpy array of patients-by-gene propagation (or binary) values
