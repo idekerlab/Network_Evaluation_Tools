@@ -7,24 +7,27 @@ import numpy as np
 Function to quantile normalize a pandas DataFrame
 Code taken from: https://github.com/ShawnLYU/Quantile_Normalize/blob/master/quantile_norm.py
 Using implementation described on Wikipedia: https://en.wikipedia.org/wiki/Quantile_normalization
-***Note the transposed propagated genotypes array structure used here***
-Parameter df: Pandas DataFrame (propagated genotypes) where rows are features (genes), and columns are samples (patients)
-Returns df_out: Quantile normalized Pandas DataFrame where the rows are features (genes), and the columns are samples (patients)
+data: Pandas DataFrame (propagated genotypes) where rows are samples (samples), and columns are features (genes)
+Returns df_out: Quantile normalized Pandas DataFrame with same orientation as data df
 '''''
-def qnorm(df):
+def qnorm(data):
+    df = data.T
     df_out = df.copy(deep=True)
     dic = {}
+
     # Sort each patient by gene propagation value
     for col in df:
         dic.update({col:sorted(df[col])})
     sorted_df = pd.DataFrame(dic)
+
     # Rank averages for each gene across samples
     ranked_avgs = sorted_df.mean(axis = 1).tolist()
+
     # Construct quantile normalized Pandas DataFrame by assigning ranked averages to ranks of each gene for each sample
     for col in df_out:
-        t = stats.rankdata(df[col]).astype(int)
+        t = ss.rankdata(df[col]).astype(int)
         df_out[col] = [ranked_avgs[i-1] for i in t]
-    return df_out
+    return df_out.T
 
 '''''
 Perform network regularized NMF for clustering
