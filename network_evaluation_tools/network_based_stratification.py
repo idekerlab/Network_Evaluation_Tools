@@ -54,9 +54,6 @@ def netNMF(data, graph_laplacian, k, gamma=2, tol=1e-8, max_iter=100, verbose=Fa
 
     # Iterative multiplicative update
     for n_iter in np.arange(1, max_iter + 1):
-        # if verbose:
-        # 	print('Iteration = '+str(n_iter)+' / '+str(max_iter)+' - Error = '+str(reconstruction_err_)+' / '+str(tol))
-
         # Update H
         h1 = gamma*np.dot(H,Lm)+np.dot(W.T,(data)/(np.dot(W,H)))
         h2 = gamma*np.dot(H,Lp)+np.dot(W.T,np.ones(data.shape).astype(np.float64))

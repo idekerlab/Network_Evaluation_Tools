@@ -7,38 +7,6 @@ import network_evaluation_functions as nef
 from multiprocessing import Pool
 import pickle as p
 
-
-# Pairwise spearman or pearson correlation of rows in given data
-def pairwise_correlation(propagated_sm_matrix, similarity='spearman', verbose=False, save_path=None):
-	starttime = time.time()
-	# Convert rows of patient profiles to rankings and change to array
-	if similarity=='pearson':
-		data_array = propagated_sm_matrix.as_matrix()
-	else:
-		data_rank_df = propagated_sm_matrix.rank(axis=1)
-		data_array = data_rank_df.as_matrix()
-	# Fast pearson correlation calculation on either ranked or un-ranked data
-	data_array_dot = data_array.dot(data_array.T)
-	e_xy = data_array_dot / data_array.shape[1]
-	data_array_means = np.asarray(data_array.mean(1)).flatten()
-	e_x_e_y = np.asarray(np.matrix(data_array_means.reshape(-1, 1)) * np.matrix(data_array_means.reshape(1, -1)))
-	corr = e_xy - e_x_e_y
-	std = np.sqrt(np.asarray((data_array * data_array).sum(1)).flatten() / data_array.shape[1] - np.power(np.asarray(data_array.mean(1)).flatten(), 2))
-	corr = corr / std.reshape(1, -1)
-	corr = corr / std.reshape(-1, 1)
-	# Convert pairwise correlation array to dataframe
-	corr_df = pd.DataFrame(corr, index=propagated_sm_matrix.index, columns=propagated_sm_matrix.index)
-	if save_path==None:
-		if verbose:
-			print 'Pairwise correlation calculation complete:', time.time()-starttime, 'seconds'		
-		return corr_df
-	else:
-		corr_df.to_csv(save_path)
-		if verbose:
-			print 'Pairwise correlation calculation complete:', time.time()-starttime, 'seconds'		
-		return corr_df
-
-
 ################################################################################
 # ---------- Additional Node Set-Based Network Evaluation Functions ---------- #
 ################################################################################
