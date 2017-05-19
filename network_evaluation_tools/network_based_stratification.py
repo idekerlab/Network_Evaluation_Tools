@@ -14,15 +14,12 @@ Returns df_out: Quantile normalized Pandas DataFrame where the rows are features
 def qnorm(df):
     df_out = df.copy(deep=True)
     dic = {}
-
     # Sort each patient by gene propagation value
     for col in df:
         dic.update({col:sorted(df[col])})
     sorted_df = pd.DataFrame(dic)
-
     # Rank averages for each gene across samples
     ranked_avgs = sorted_df.mean(axis = 1).tolist()
-
     # Construct quantile normalized Pandas DataFrame by assigning ranked averages to ranks of each gene for each sample
     for col in df_out:
         t = stats.rankdata(df[col]).astype(int)
