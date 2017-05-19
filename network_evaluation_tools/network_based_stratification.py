@@ -25,7 +25,7 @@ def qnorm(data):
 
     # Construct quantile normalized Pandas DataFrame by assigning ranked averages to ranks of each gene for each sample
     for col in df_out:
-        t = ss.rankdata(df[col]).astype(int)
+        t = stats.rankdata(df[col]).astype(int)
         df_out[col] = [ranked_avgs[i-1] for i in t]
     return df_out.T
 
