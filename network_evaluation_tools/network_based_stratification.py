@@ -28,6 +28,70 @@ def qnorm(data):
         df_out[col] = [ranked_avgs[i-1] for i in t]
     return df_out.T
 
+# Adapted from Matan Hofree's Matlab code in NBS
+# Y = features-by-samples
+# H = Initial H array (k-by-samples)
+# W = Initial W array (features-by-k)
+# A = Network adjacency matrix
+# D = Diagonal matrix of network degree sums (rows and columns must be same order as A)
+# k = Number of clusters for factorization
+# fgamma = Network regularization term constant
+# eps = Small number precision
+# Loop break conditions:
+#   residual = Maximum value of objective function allowed for break
+#   delta = Maximum change in reconstruction error allowed for break
+#   niter = Maximum number of iterations to execute before break
+@jit(nopython=True)
+def mixed_netNMF(Y, H_init, W_init, A, D, k, fgamma, eps=1e-15, residual=1e-4, delta=1e-4, niter=250):
+    # Calculate graph laplacian
+    K = D-A
+    # Set H
+    H = H_init
+    H = np.maximum(H, eps)
+    # Set W
+    W = W_init
+    W = np.maximum(W, eps)
+    # Initialize reconstruction error
+    reconstruction_error = np.empty(niter)
+    regularization_term = np.empty(niter)
+    fit_prev = np.dot(W, H)
+    # Mixed NMF iterative update
+    for i in np.arange(niter):
+
+        # Network Regularization Term
+        Kres = np.trace(np.dot(W.T, np.dot(K, W))) # Regularization term (originally sqrt of this value is taken)
+        regularization_term[i] = Kres
+
+        # Reconstruction Error
+        fit_curr = np.dot(W, H)
+        fit_err = np.linalg.norm(Y-fit_curr)
+        reconstruction_error[i] = fit_err
+
+        # Change in reconstruction
+        if i == 0:
+            fitRes = fit_err
+        else:
+            fitRes = np.linalg.norm(fit_prev-fit_curr) 
+        fit_prev = fit_curr
+
+        # Check for conditions to break update loop
+        if (delta > fitRes) | (residual > fit_err) | (i+1 == niter):
+            break
+
+        # Update W with network constraint
+        W = W*((np.dot(Y, H.T) + fgamma*np.dot(A,W)) / (np.dot(W,np.dot(H,H.T)) + fgamma*np.dot(D,W)))
+        W = np.maximum(W, eps)
+        # Normalize W
+        W_colsums = np.zeros(k).astype(np.float64)
+        for i in np.arange(k):
+            W_colsums[i] = 1/np.sum(W[:, i])
+        W = np.dot(W, np.diag(W_colsums))
+
+        # Update H
+        H = np.linalg.lstsq(W, Y)[0] # Matan uses a custom fast non-negative least squares solver here, we will use numpy again
+        H = np.maximum(H, eps)
+    return H, W, reconstruction_error, regularization_term, i+1, fit_err
+
 # Network-regularized non-negative matrix factorization
 # Cai et al 2008. Proceedings - 8th IEEE International Conference on Data Mining, ICDM 2008
 # http://ieeexplore.ieee.org/stamp/stamp.jsp?arnumber=4781101
@@ -65,7 +129,6 @@ def netNMF(X, A, D, k, gamma=1, tol=1e-8, max_iter=10):
         if n_iter == max_iter-1:
             break
     return U, V, n_iter+1, reconstruction_err
-
 
 # Perform network regularized NMF for clustering
 # Code adapated from github GHFC/stratipy
