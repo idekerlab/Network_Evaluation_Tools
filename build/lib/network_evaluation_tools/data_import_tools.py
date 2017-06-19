@@ -7,7 +7,23 @@ import networkx as nx
 import time
 import os
 
-# Load network from file
+# Filter extended sif file where all edges are weighted by a specific quantile
+# Return the filtered network edge list and save it to a file if desired (for import by load_network_file)
+def filter_weighted_network_sif(network_file_path, nodeA_col=0, nodeB_col=1, score_col=2, q=0.9, delimiter='\t', verbose=False, save_path=None):
+    data = pd.read_csv(network_file_path, sep=delimiter, header=-1, low_memory=False)
+    # Filter edges by score quantile
+    q_score = data[score_col].quantile(q)
+    if verbose:
+        print str(round(q*100,2))+'%', 'score:', q_score
+    data_filt = data[data[score_col]>q_score][data.columns[[nodeA_col, nodeB_col, score_col]]]
+    data_filt.columns = ['nodeA', 'nodeB', 'edgeScore']
+    if verbose:
+        print data_filt.shape[0], '/', data.shape[0], 'edges retained'
+    if save_path is not None:
+        data_filt.to_csv(save_path, sep='\t', header=False, index=False)
+    return data_filt
+
+# Load network from file as unweighted network
 # Can set delimiter, but default delimiter is tab
 # Only will read edges as first two columns, all other columns will be ignored
 def load_network_file(network_file_path, delimiter='\t', verbose=False):
@@ -56,12 +72,16 @@ def load_networks(network_file_map, delimiter='\t', verbose=False):
 # Convert and save MAF from Broad Firehose
 # Can produce 2 types of filetypes: 'matrix' or 'list', matrix is a full samples-by-genes binary csv, 'list' is a sparse representaiton of 'matrix'
 # This is a conversion tool, so the result must be saved (most tools will require a path to a processed MAF file and load it separately)
-def process_TCGA_MAF(maf_file, save_path, filetype='matrix', verbose=False):
+# Gene naming can be 'Symbol' or 'Entrez'
+def process_TCGA_MAF(maf_file, save_path, filetype='matrix', gene_naming='Symbol', verbose=False):
 	loadtime = time.time()
 	# Load MAF File
 	TCGA_MAF = pd.read_csv(maf_file,sep='\t',low_memory=False)
 	# Get all patient somatic mutation (sm) pairs from MAF file
-	TCGA_sm = TCGA_MAF.groupby(['Tumor_Sample_Barcode', 'Hugo_Symbol']).size()
+	if gene_naming=='Entrez':
+		TCGA_sm = TCGA_MAF.groupby(['Tumor_Sample_Barcode', 'Entrez_Gene_Id']).size()
+	else:
+		TCGA_sm = TCGA_MAF.groupby(['Tumor_Sample_Barcode', 'Hugo_Symbol']).size()
 	# Turn somatic mutation data into binary matrix
 	TCGA_sm_mat = TCGA_sm.unstack().fillna(0)
 	TCGA_sm_mat = (TCGA_sm_mat>0).astype(int)
@@ -88,9 +108,12 @@ def process_TCGA_MAF(maf_file, save_path, filetype='matrix', verbose=False):
 		# Save non-duplicate patients' binary TCGA somatic mutation matrix to csv
 		TCGA_sm_mat_filt = TCGA_sm_mat.ix[non_dup_IDs]
 		# Remove all genes that have no more mutations after patient filtering
-		empty_cols = [col for col in TCGA_sm_mat_filt.columns if not all(TCGA_sm_mat_filt[col]==0)]
-		TCGA_sm_mat_filt2 = TCGA_sm_mat_filt[empty_cols]
-		TCGA_sm_mat_filt2.to_csv(save_path)
+		nonempty_cols = [col for col in TCGA_sm_mat_filt.columns if not all(TCGA_sm_mat_filt[col]==0)]
+		TCGA_sm_mat_filt2 = TCGA_sm_mat_filt[nonempty_cols]
+		# Remove columns with bad names like '0'
+		named_cols = [col for col in TCGA_sm_mat_filt.columns if col!='0']
+		TCGA_sm_mat_filt3 = TCGA_sm_mat_filt2[nonempty_cols]
+		TCGA_sm_mat_filt3.to_csv(save_path)
 		if verbose:
 			print 'Binary somatic mutation matrix saved'
 	if verbose:

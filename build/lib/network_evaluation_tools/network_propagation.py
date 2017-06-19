@@ -10,15 +10,16 @@ import copy
 from numba import jit
 
 # Normalize network (or network subgraph) for random walk propagation
-def normalize_network(network):
+def normalize_network(network, symmetric_norm=False):
 	adj_mat = nx.adjacency_matrix(network)
 	adj_array = np.array(adj_mat.todense())
-	degree_norm_array = np.zeros(adj_array.shape)
-	degree_sum = sum(adj_array)
-	for i in range(len(degree_norm_array)):
-		degree_norm_array[i,i]=1/float(degree_sum[i])
-	sparse_degree_norm_array = scipy.sparse.csr_matrix(degree_norm_array)
-	adj_array_norm = sparse_degree_norm_array.dot(adj_mat)
+	if symmetric_norm:
+		D = np.diag(1/np.sqrt(sum(adj_array)))
+		adj_array_norm = np.dot(np.dot(D, adj_array), D)
+	else:
+		degree_norm_array = np.diag(1/sum(adj_array).astype(float))
+		sparse_degree_norm_array = scipy.sparse.csr_matrix(degree_norm_array)
+		adj_array_norm = sparse_degree_norm_array.dot(adj_mat).toarray()
 	return adj_array_norm
 # Note about normalizing by degree, if multiply by degree_norm_array first (D^-1 * A), then do not need to return
 # transposed adjacency array, it is already in the correct orientation
@@ -44,10 +45,10 @@ def fast_random_walk(alpha, binary_mat, subgraph_norm, prop_data):
 	return np.concatenate((prop_data, subgraph_prop), axis=1)
 
 # Wrapper for random walk propagation of full network by subgraphs
-def closed_form_network_propagation(network, binary_matrix, alpha=None, m=-0.17190024, b=0.7674828, verbose=False, save_path=None):
+def closed_form_network_propagation(network, binary_matrix, symmetric_norm=False, alpha=None, m=-0.17190024, b=0.7674828, verbose=False, save_path=None):
 	starttime=time.time()
 	# Calculate alpha from network (resulting alpha must be <1)
-	if alpha!=None:
+	if alpha is not None:
 		network_alpha=alpha
 	else:
 		network_alpha = calculate_alpha(network, m, b)
@@ -60,7 +61,7 @@ def closed_form_network_propagation(network, binary_matrix, alpha=None, m=-0.171
 	subgraph_nodes = subgraph.nodes()
 	prop_data_node_order = list(subgraph_nodes)
 	binary_matrix_filt = np.array(binary_matrix.T.ix[subgraph_nodes].fillna(0).T)
-	subgraph_norm = normalize_network(subgraph).toarray()	
+	subgraph_norm = normalize_network(subgraph, symmetric_norm=symmetric_norm)
 	prop_data_empty = np.zeros((binary_matrix_filt.shape[0], 1))
 	prop_data = fast_random_walk(network_alpha, binary_matrix_filt, subgraph_norm, prop_data_empty)
 	# Get propagated results for remaining subgraphs
@@ -68,11 +69,11 @@ def closed_form_network_propagation(network, binary_matrix, alpha=None, m=-0.171
 		subgraph_nodes = subgraph.nodes()
 		prop_data_node_order = prop_data_node_order + subgraph_nodes
 		binary_matrix_filt = np.array(binary_matrix.T.ix[subgraph_nodes].fillna(0).T)
-		subgraph_norm = normalize_network(subgraph).toarray()
+		subgraph_norm = normalize_network(subgraph, symmetric_norm=symmetric_norm)
 		prop_data = fast_random_walk(network_alpha, binary_matrix_filt, subgraph_norm, prop_data)
 	# Return propagated result as dataframe
 	prop_data_df = pd.DataFrame(data=prop_data[:,1:], index = binary_matrix.index, columns=prop_data_node_order)
-	if save_path==None:
+	if save_path is None:
 		if verbose:
 			print 'Network Propagation Complete:', time.time()-starttime, 'seconds'		
 		return prop_data_df
@@ -86,7 +87,7 @@ def closed_form_network_propagation(network, binary_matrix, alpha=None, m=-0.171
 def iterative_network_propagation(network, binary_matrix, max_iter=250, tol=1e-8, alpha=None, m=-0.17190024, b=0.7674828, verbose=False, save_path=None):
 	starttime=time.time()
 	# Calculate alpha
-	if alpha!=None:
+	if alpha is not None:
 		network_alpha = alpha
 	else:
 		network_alpha = calculate_alpha(network, m, b)
@@ -113,7 +114,7 @@ def iterative_network_propagation(network, binary_matrix, max_iter=250, tol=1e-8
 		step_RMSE.append(np.sqrt(sum(step_diff**2) / len(step_diff)))
 		i+=1
 	prop_data_df = pd.DataFrame(data=Fn.todense(), index=binary_matrix.index, columns = network.nodes())
-	if save_path==None:
+	if save_path is None:
 		if verbose:
 			print 'Network Propagation Complete:', i, 'steps,', time.time()-starttime, 'seconds, step RMSE:', step_RMSE[-1]		
 		return prop_data_df, step_RMSE[1:]

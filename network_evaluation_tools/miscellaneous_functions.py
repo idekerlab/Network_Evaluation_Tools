@@ -94,7 +94,7 @@ def confusion_matrix_construction_wrapper(network_file, node_set_file, sample_p,
 		conf_mat_results = pool.map(nef.calculate_confusion_matrix_parallel, conf_mat_Analysis_params)
 		# Construct confusion matrix results dictionary
 		node_set_conf_mat = {result[0]:result[1] for result in conf_mat_results}
-	if save_path == None:
+	if save_path is None:
 		if verbose:
 			print 'Network confusion matrix values calcualted:', round(time.time()-starttime, 2), 'seconds'			
 		return node_set_conf_mat
@@ -145,7 +145,7 @@ def confusion_matrix_analysis(confusion_matrix_input, calculation, recall_thresh
 	# Return table of average/variance values for performance on all cohorts at given threshold
 	cohort_calculated_values_table = pd.concat([pd.Series(cohort_calculated_values_mean, name='Average '+calculation),
 												pd.Series(cohort_calculated_values_var, name=calculation+' Var')], axis=1)
-	if save_path == None:
+	if save_path is None:
 		if verbose:
 			print calculation, 'calculation completed for all cohorts', round(time.time()-runtime, 2), 'seconds.'
 		return cohort_calculated_values_table

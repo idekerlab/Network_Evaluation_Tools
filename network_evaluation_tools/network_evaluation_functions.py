@@ -119,7 +119,7 @@ def AUPRC_Analysis(network_file, node_set_file, sample_p, sub_sample_iterations,
 		# Construct AUPRC results dictionary
 		node_set_AUPRCs = {result[0]:result[1] for result in AUPRC_results}
 	AUPRCs_table = pd.DataFrame(pd.Series(node_set_AUPRCs, name='AUPRC'))
-	if save_path == None:
+	if save_path is None:
 		if verbose:
 			print 'Network AUPRC Analysis complete:', round(time.time()-starttime, 2), 'seconds'			
 		return AUPRCs_table
@@ -161,7 +161,7 @@ def null_AUPRC_Analysis(network_file, node_set_file, sample_p, sub_sample_iterat
 		if verbose: # All of the verbosity for each shuffled network is turned off to prevent cluttering of the log
 			print 'Shuffled Network', repr(i+1), 'AUPRC Analysis done'
 	null_AUPRCs_table = pd.concat(null_AUPRCs, axis=1)
-	if save_path == None:
+	if save_path is None:
 		if verbose:
 			print 'Null AUPRC Analysis complete:', round(time.time()-starttime, 2), 'seconds'
 		return null_AUPRCs_table
@@ -183,7 +183,7 @@ def AUPRC_Analysis_with_ZNorm(actual_net_AUPRCs_path, shuff_net_AUPRCs_path, ver
 	AUPRC_null_MAD = abs(shuff_net_AUPRCs.subtract(AUPRC_null_median, axis=0)).median(axis=1)
 	AUPRC_null_MAD_scaled = k*AUPRC_null_MAD
 	AUPRC_ZNorm = (actual_net_AUPRCs['AUPRC'] - AUPRC_null_median).divide(AUPRC_null_MAD_scaled)
-	if save_path == None:
+	if save_path is None:
 		if verbose:
 			print 'AUPRC values z-normalized'		
 		return AUPRC_ZNorm

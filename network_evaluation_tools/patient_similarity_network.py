@@ -28,7 +28,7 @@ def perform_PCA(propagated_sm_matrix, n=None, t=0.9, verbose=False):
 	PCs=['PC'+repr(i+1) for i in propagated_profile_pca.columns]
 	propagated_profile_pca.columns = PCs
 	# Return number of PCs if given, otherwise return reduced matrix by explained variance threshold
-	if n==None:
+	if n is None:
 		# Calculate the variance explained by each PC
 		explained_variance_ratio = pca.explained_variance_ratio_
 		# Reduce propagated somatic mutation profiles to capture a specific proportion of the data's variance (t)
@@ -62,7 +62,7 @@ def pairwise_correlation(propagated_sm_matrix, similarity='spearman', verbose=Fa
 	corr = corr / std.reshape(-1, 1)
 	# Convert pairwise correlation array to dataframe
 	corr_df = pd.DataFrame(corr, index=propagated_sm_matrix.index, columns=propagated_sm_matrix.index)
-	if save_path==None:
+	if save_path is None:
 		if verbose:
 			print 'Pairwise correlation calculation complete:', time.time()-starttime, 'seconds'		
 		return corr_df
@@ -107,7 +107,7 @@ def pairwise_jaccard(propagated_sm_matrix, verbose=False, save_path=None):
 	data_array = np.ascontiguousarray(propagated_sm_matrix)
 	jaccard_full = jaccard_gu(data_array, data_array.T)
 	jaccard_df = pd.DataFrame(jaccard_full, index = propagated_sm_matrix.index, columns=propagated_sm_matrix.index)
-	if save_path==None:
+	if save_path is None:
 		if verbose:
 			print 'Pairwise jaccard similarity calculation complete:', time.time()-starttime, 'seconds'		
 		return jaccard_df
@@ -127,7 +127,7 @@ def symmetric_z_norm(similarity_df, verbose=False, save_path=None):
 	similarity_df_cols = similarity_df_rows.T
 	# Average Row and Column Z-normlizations of table
 	symmetric_z_table = (similarity_df_rows + similarity_df_cols) / 2
-	if save_path==None:
+	if save_path is None:
 		if verbose:
 			print 'Symmetric Z normalization of similarity matrix complete:', time.time()-starttime, 'seconds'		
 		return symmetric_z_table
@@ -148,7 +148,7 @@ def KNN_joining(similarity_df, k=5, verbose=False, save_path=None):
 		pat_knn = diag_adjust_pairwise_sim_array.ix[pat].sort_values(ascending=False).ix[:k].index
 		for neighbor in pat_knn:
 			G.add_edge(pat, neighbor)
-	if save_path==None:
+	if save_path is None:
 		if verbose:
 			print 'Network construction complete:', time.time()-starttime, 'seconds', len(G.nodes()), 'patients', len(G.edges()), 'edges'
 		return G
@@ -181,7 +181,7 @@ def PSN_Constructor(network_path, binary_mut_mat_path,
 	if verbose:
 		print '---------- Constructing Patient Similarity Network ----------'
 	# Propagate somatic mutation data
-	if save_propagation==None:
+	if save_propagation is None:
 		prop_data = prop.closed_form_network_propagation(network, sm_mat_filt, alpha=alpha, m=m, b=b, verbose=verbose)
 	else:
 		prop_data = prop.closed_form_network_propagation(network, sm_mat_filt, alpha=alpha, m=m, b=b, verbose=verbose, save_path=save_propagation)
@@ -190,14 +190,14 @@ def PSN_Constructor(network_path, binary_mut_mat_path,
 	# PCA Reduce centered data
 	prop_centered_PCA = perform_PCA(prop_centered, verbose=verbose)
 	# Pairwise Spearman on PCA reduced data
-	if save_similarity==None:
+	if save_similarity is None:
 		prop_centered_PCA_spearman = pairwise_correlation(prop_centered_PCA, similarity=similarity, verbose=verbose)
 	else:
 		prop_centered_PCA_spearman = pairwise_correlation(prop_centered_PCA, similarity=similarity, verbose=verbose, save_path=save_similarity)
 	# Symmetric Z-normalization of pairwise spearman data
 	prop_centered_PCA_spearman_znorm = symmetric_z_norm(prop_centered_PCA_spearman, verbose=verbose)
 	# Construct PSN graph
-	if save_network==None:
+	if save_network is None:
 		PSN = KNN_joining(prop_centered_PCA_spearman_znorm, k=k, verbose=verbose)
 	else:
 		PSN = KNN_joining(prop_centered_PCA_spearman_znorm, k=k, verbose=verbose, save_path=save_network)

@@ -111,7 +111,7 @@ def construct_query_map_table(query_result, query_genes, display_unmatched_queri
 	print 'Query mapping table/dictionary construction complete:', round(time.time()-construction_time,2), 'seconds'
 	return match_table_trim, query_to_symbol, query_to_entrez
 
-# Filter edgelist to remove all genes that do not contain invalid query names
+# Filter edgelist to remove all genes that contain invalid query names
 # This function is only required if there are any invalid genes found by query_constructor()
 def filter_query_edgelist(query_edgelist, invalid_genes):
 	edgelist_filt = []
@@ -125,8 +125,12 @@ def filter_query_edgelist(query_edgelist, invalid_genes):
 	return edgelist_filt
 
 # Convert network edge lists
-def convert_edgelist(query_edgelist, gene_map):
-	return [sorted([gene_map[edge[0]],gene_map[edge[1]]]) for edge in query_edgelist]
+# Third column is for weights if desired to pass weights forward
+def convert_edgelist(query_edgelist, gene_map, weighted=False):
+	if weighted:
+		return [sorted([gene_map[edge[0]],gene_map[edge[1]]])+[edge[2]] for edge in query_edgelist]	
+	else:
+		return [sorted([gene_map[edge[0]],gene_map[edge[1]]]) for edge in query_edgelist]
 
 # Sometimes each node needs to be converted by its best match if there are multiple names per node
 # This function uses the match_table constructed earlier to convert genes to either symbol or entrez format only
@@ -152,7 +156,7 @@ def convert_custom_namelist(names, field, match_table):
 			return conversion[conversion['Score']==max_score].ix[0]['EntrezID']
 
 # Filter converted edge lists
-def filter_converted_edgelist(edgelist, remove_self_edges=True):
+def filter_converted_edgelist(edgelist, remove_self_edges=True, weighted=False):
 	filter_time = time.time()
 	print len(edgelist),'input edges'
 	# Remove self-edges
@@ -162,21 +166,41 @@ def filter_converted_edgelist(edgelist, remove_self_edges=True):
 	else:
 		edgelist_filt1 = edgelist
 		print 'Self-edges not removed'
-	# Remove edges where one or both nodes are "None"
-	edgelist_filt2 = pd.DataFrame(data=edgelist_filt1).dropna()
-	print len(edgelist_filt1)-edgelist_filt2.shape[0], 'edges with un-mapped genes removed'
-	# Remove duplicate edges
-	edgelist_filt3 = edgelist_filt2.drop_duplicates()
-	print edgelist_filt2.shape[0]-edgelist_filt3.shape[0], 'duplicate edges removed'
+	if weighted:
+		# Remove edges where one or both nodes are "None"
+		edgelist_filt2 = pd.DataFrame(data=edgelist_filt1).dropna().values.tolist()
+		print len(edgelist_filt1)-len(edgelist_filt2), 'edges with un-mapped genes removed'
+		# Remove duplicates by keeping the max score
+		edgelist_filt3_scoremap = {}
+		for edge in edgelist_filt2:
+			if edge[0]+'+'+edge[1] not in edgelist_filt3_scoremap:
+				edgelist_filt3_scoremap[edge[0]+'+'+edge[1]] = edge[2]
+			else:
+				edgelist_filt3_scoremap[edge[0]+'+'+edge[1]] = max(edgelist_filt3_scoremap[edge[0]+'+'+edge[1]], edge[2])
+		# Convert dictionary of scores to list
+		edgelist_filt3 = []
+		for edge in edgelist_filt3_scoremap:
+			edgelist_filt3.append(edge.split('+')+[edgelist_filt3_scoremap[edge]])
+		print len(edgelist_filt2)-len(edgelist_filt3), 'duplicate edges removed'
+	else:
+		# Remove edges where one or both nodes are "None"
+		edgelist_filt2 = pd.DataFrame(data=edgelist_filt1).dropna()
+		print len(edgelist_filt1)-edgelist_filt2.shape[0], 'edges with un-mapped genes removed'
+		# Remove duplicate edges
+		edgelist_filt3 = edgelist_filt2.drop_duplicates().values.tolist()
+		print edgelist_filt2.shape[0]-len(edgelist_filt3), 'duplicate edges removed'
 	print 'Edge list filtered:',round(time.time()-filter_time,2),'seconds'
 	print len(edgelist_filt3), 'Edges remaining'
-	return edgelist_filt3.values.tolist()
+	return edgelist_filt3
 
 # Write edgelist to file
-def write_edgelist(edgelist, output_file, delimiter='\t'):
+def write_edgelist(edgelist, output_file, delimiter='\t', binary=True):
 	write_time=time.time()
 	f = open(output_file,'w')
 	for edge in edgelist:
-		f.write(delimiter.join(edge)+'\n')
+		if binary:
+			f.write(delimiter.join([edge[0], edge[1]])+'\n')
+		else:
+			f.write(delimiter.join([str(val) for val in edge])+'\n')
 	f.close()
 	print 'Edge list saved:', round(time.time()-write_time,2),'seconds'
