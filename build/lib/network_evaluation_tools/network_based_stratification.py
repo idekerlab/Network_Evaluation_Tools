@@ -331,7 +331,7 @@ def NBS_single(sm_mat, options, propNet=None, regNet_glap=None, verbose=True, sa
                    'qnorm_data':True,
                    'netNMF_k':4,
                    'netNMF_gamma':200,
-                   'netNMF_update_gamma':True,
+                   'netNMF_update_gamma':False,
                    'netNMF_gamma_factor':1,
                    'netNMF_niter':250,
                    'netNMF_eps':1e-15,
@@ -440,7 +440,7 @@ from lifelines.statistics import multivariate_logrank_test as multiv_lr_test
 
 # Helper function for turning cluster assignments into color mappings (used for consensus clustering map figures)
 def cluster_color_assign(cluster_assignments, name=None):
-    k = len(cluster_assignments.value_counts())
+    k = max(cluster_assignments.value_counts().index)
     colors = sns.color_palette('hls', k)
     cluster_cmap = {i:colors[i-1] for i in range(1, k+1)}
     pat_colors = {}

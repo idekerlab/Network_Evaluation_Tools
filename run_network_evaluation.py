@@ -1,6 +1,6 @@
-##################################################################
-# Command line script to analyze network on node sets of interest#
-##################################################################
+###################################################################
+# Command line script to analyze network on node sets of interest #
+###################################################################
 
 from network_evaluation_tools import network_evaluation_functions as nef
 import argparse

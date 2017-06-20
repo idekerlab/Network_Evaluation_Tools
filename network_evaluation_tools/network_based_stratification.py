@@ -1,6 +1,6 @@
-#######################################################################
-# ---------- Network-Based Stratification Import Functions ---------- #
-#######################################################################
+################################################################
+# ---------- Network-Based Stratification Functions ---------- #
+################################################################
 
 ############################################
 # ---------- Core NBS Functions ---------- #
@@ -165,7 +165,6 @@ def mixed_netNMF(data, KNN_glap, k, W_init=None, H_init=None,
     else:
         W = np.copy(W_init)
     print 'W and H matrices initialized'
-        
     # Get graph matrices from laplacian array
     D = np.diag(np.diag(KNN_glap)).astype(float)
     A = (D-KNN_glap).astype(float)
@@ -176,10 +175,9 @@ def mixed_netNMF(data, KNN_glap, k, W_init=None, H_init=None,
     if debug_mode:
         resVal, resVal_Kreg, fitResVect, fitGamma, Wlist, Hlist = [], [], [], [], [], []
     XfitPrevious = np.inf
-    
+
     # Updating W and H
     for i in range(niter):
-        # Gamma update does not have to happen for every iteration...
         KWmat = np.dot(KNN_glap, W)
         Kres = np.trace(np.dot(W.T, KWmat)) # Un-scaled regularization term (originally sqrt of this value is taken)
         XfitThis = np.dot(W, H)
@@ -191,7 +189,6 @@ def mixed_netNMF(data, KNN_glap, k, W_init=None, H_init=None,
         else:
             fitRes = np.linalg.norm(XfitPrevious-XfitThis)
         XfitPrevious = XfitThis
-        
         # Tracking reconstruction errors and residuals
         if debug_mode:
             resVal.append(WHres)
@@ -200,10 +197,8 @@ def mixed_netNMF(data, KNN_glap, k, W_init=None, H_init=None,
             fitGamma.append(gamma)
             Wlist.append(W)
             Hlist.append(H)
-
         if (verbose) & (i%10==0):
             print 'Iteration >>', i, 'Mat-res:', WHres, 'K-res:', np.sqrt(Kres), 'Sum:', WHres+np.sqrt(Kres), 'Gamma:', gamma, 'Wfrob:', np.linalg.norm(W)
-
         if (err_delta_tol > fitRes) | (err_tol > WHres) | (i+1 == niter):
             if verbose:
                 print 'NMF completed!'
@@ -218,7 +213,6 @@ def mixed_netNMF(data, KNN_glap, k, W_init=None, H_init=None,
         if (update_gamma==True) & (gamma_factor!=0) & (i+1 <= optGammaIterMax) & (i+1 > optGammaIterMin):
             new_gamma = round((WHres/np.sqrt(Kres))*gamma_factor)
             gamma = new_gamma
-        
         # Terms to be scaled by gamma
         KWmat_D = np.dot(D,W) 
         KWmat_W = np.dot(A,W)
@@ -227,12 +221,10 @@ def mixed_netNMF(data, KNN_glap, k, W_init=None, H_init=None,
         W = W*((np.dot(data, H.T) + gamma*KWmat_W + eps) / (np.dot(W,np.dot(H,H.T)) + gamma*KWmat_D + eps))
         W = np.maximum(W, eps)
         W = W/matlib.repmat(np.maximum(sum(W),eps),len(W),1);        
-
         # Update H
         H = np.array([nnls(W, data[:,j])[0] for j in range(data.shape[1])]).T 
         # ^ Matan uses a custom fast non-negative least squares solver here, we will use scipy's implementation here
         H=np.maximum(H,eps)
-
     
     if debug_mode:
         return W, H, numIter, finalResidual, resVal, resVal_Kreg, fitResVect, fitGamma, Wlist, Hlist
@@ -331,7 +323,7 @@ def NBS_single(sm_mat, options, propNet=None, regNet_glap=None, verbose=True, sa
                    'qnorm_data':True,
                    'netNMF_k':4,
                    'netNMF_gamma':200,
-                   'netNMF_update_gamma':True,
+                   'netNMF_update_gamma':False,
                    'netNMF_gamma_factor':1,
                    'netNMF_niter':250,
                    'netNMF_eps':1e-15,
@@ -398,9 +390,18 @@ def NBS_single(sm_mat, options, propNet=None, regNet_glap=None, verbose=True, sa
 # Wrapper function to run a multiple instances of network-regularized NMF on given somatic mutation data and network
 # and then perform consensus clustering on the result
 # knnGlap_file must be a .csv file
-def NBS_cc(sm_mat_file, network_file, config_file, calculate_knnGlap=True, knnGlap_file=None, verbose=True):
-    # Load NBS options
-    NBS_options = load_options(config_file)
+def NBS_cc(sm_mat_file, network_file, config_file=None, calculate_knnGlap=True, knnGlap_file=None, verbose=True):
+    # Load NBS options (if any given)
+    if config_file is not None:
+        f = open(config_file)
+        config_lines = f.read().splitlines()
+        NBS_options = {line.split('\t')[0]:line.split('\t')[1] for line in config_lines if not line.startswith('#')}
+    else:
+        NBS_options = {}
+    if verbose:
+        print 'User set NBS options:'
+        for option in NBS_options:
+            print option+':', NBS_options[option]
     # Load somatic mutation data
     sm_mat = dit.load_binary_mutation_data(sm_mat_file, filetype=NBS_options['sm_mat_filetype'], delimiter=NBS_options['sm_mat_delim'], verbose=True)
     # Load network
@@ -427,8 +428,7 @@ def NBS_cc(sm_mat_file, network_file, config_file, calculate_knnGlap=True, knnGl
     NBS_cluster_assign_cmap = cluster_color_assign(NBS_cluster_assign, name='Cluster Assignment')
     plot_cc_map(NBS_cc_table, NBS_cc_linkage, title=NBS_options['cc_map_title'], row_color_map=None, col_color_map=NBS_cluster_assign_cmap, save_path=NBS_options['cc_map_save_path'])
     if verbose:
-        print 'Consensus Clustering map saved'
-
+        print 'Consensus Clustering map saved'        
 
 ################################################
 # ---------- NBS Plotting Functions ---------- #
@@ -440,7 +440,7 @@ from lifelines.statistics import multivariate_logrank_test as multiv_lr_test
 
 # Helper function for turning cluster assignments into color mappings (used for consensus clustering map figures)
 def cluster_color_assign(cluster_assignments, name=None):
-    k = len(cluster_assignments.value_counts())
+    k = max(cluster_assignments.value_counts().index)
     colors = sns.color_palette('hls', k)
     cluster_cmap = {i:colors[i-1] for i in range(1, k+1)}
     pat_colors = {}
