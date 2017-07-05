@@ -55,7 +55,7 @@ def fast_random_walk(alpha, binary_mat, subgraph_norm, prop_data):
 	return np.concatenate((prop_data, subgraph_prop), axis=1)
 
 # Wrapper for random walk propagation of full network by subgraphs
-def closed_form_network_propagation(network, binary_matrix, alpha,symmetric_norm=False,  verbose=False, save_path=None):
+def closed_form_network_propagation(network, binary_matrix, network_alpha, symmetric_norm=False,  verbose=False, save_path=None):
 	starttime=time.time()
 	if verbose:
 		print 'Alpha:', network_alpha
@@ -89,7 +89,7 @@ def closed_form_network_propagation(network, binary_matrix, alpha,symmetric_norm
 		return prop_data_df
 
 # Propagate binary matrix via iterative/power form of random walk model
-def iterative_network_propagation(network, binary_matrix, alpha, max_iter=250, tol=1e-8, verbose=False, save_path=None):
+def iterative_network_propagation(network, binary_matrix, network_alpha, max_iter=250, tol=1e-8, verbose=False, save_path=None):
 	starttime=time.time()
 	if verbose:
 		print 'Alpha:', network_alpha
