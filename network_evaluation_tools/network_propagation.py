@@ -25,17 +25,17 @@ def normalize_network(network, symmetric_norm=False):
 # transposed adjacency array, it is already in the correct orientation
 
 # Calculate optimal propagation coefficient (updated model)
-def calculate_alpha(network, m=-0.17190024, b=0.7674828):
-	avg_node_degree = np.log10(np.mean(network.degree().values()))
-	alpha_val = round(m*avg_node_degree+b,3)
+def calculate_alpha(network, m=-0.02935302, b=0.74842057):
+	log_edge_count = np.log10(len(network.edges()))
+	alpha_val = round(m*log_edge_count+b,3)
 	if alpha_val <=0:
-		raise ValueError('Alpha <= 0 - Network Avg Node Degree is too high')
+		raise ValueError('Alpha <= 0 - Network Edge Count is too high')
 		# There should never be a case where Alpha >= 1, as avg node degree will never be negative
 	else:
 		return alpha_val
 
 # Calculate optimal propagation coefficient (old model)
-def calculate_alpha_old(network, m=-0.02935302, b=0.74842057):
+def calculate_alpha_old(network, m=-0.17190024, b=0.7674828):
 	avg_node_degree = np.log10(np.mean(network.degree().values()))
 	alpha_val = round(m*avg_node_degree+b,3)
 	if alpha_val <=0:

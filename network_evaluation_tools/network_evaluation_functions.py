@@ -37,8 +37,8 @@ def calculate_p(network, nodesets, m=-0.18887257, b=0.64897403):
 	network_nodes = [str(gene) for gene in network.nodes()]
 	nodesets_p = {}
 	for nodeset in nodesets:
-		nodesets_coverage = len([node for node in nodeset if node in network_nodes])
-		nodesets_p[nodeset] = round(m*nodesets_coverage+b, 3)
+		nodesets_coverage = len([node for node in nodesets[nodeset] if node in network_nodes])
+		nodesets_p[nodeset] = round(m*np.log10(nodesets_coverage)+b, 4)
 	return nodesets_p
 
 # Construct influence matrix of each network node propagated across network to use as kernel in AUPRC analysis
