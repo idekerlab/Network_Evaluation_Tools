@@ -34,7 +34,7 @@ def shuffle_network(network, verbose=False):
 
 # Calculate optimal sub-sampling proportion for test/train
 def calculate_p(network, nodesets, m=-0.18887257, b=0.64897403):
-	network_nodes = network.nodes()
+	network_nodes = [str(gene) for gene in network.nodes()]
 	nodesets_p = {}
 	for nodeset in nodesets:
 		nodesets_coverage = len([node for node in nodeset if node in network_nodes])
