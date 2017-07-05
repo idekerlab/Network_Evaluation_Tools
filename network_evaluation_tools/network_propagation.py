@@ -24,8 +24,18 @@ def normalize_network(network, symmetric_norm=False):
 # Note about normalizing by degree, if multiply by degree_norm_array first (D^-1 * A), then do not need to return
 # transposed adjacency array, it is already in the correct orientation
 
-# Calculate optimal propagation coefficient
-def calculate_alpha(network, m, b):
+# Calculate optimal propagation coefficient (updated model)
+def calculate_alpha(network, m=-0.17190024, b=0.7674828):
+	avg_node_degree = np.log10(np.mean(network.degree().values()))
+	alpha_val = round(m*avg_node_degree+b,3)
+	if alpha_val <=0:
+		raise ValueError('Alpha <= 0 - Network Avg Node Degree is too high')
+		# There should never be a case where Alpha >= 1, as avg node degree will never be negative
+	else:
+		return alpha_val
+
+# Calculate optimal propagation coefficient (old model)
+def calculate_alpha_old(network, m=-0.02935302, b=0.74842057):
 	avg_node_degree = np.log10(np.mean(network.degree().values()))
 	alpha_val = round(m*avg_node_degree+b,3)
 	if alpha_val <=0:
@@ -45,13 +55,8 @@ def fast_random_walk(alpha, binary_mat, subgraph_norm, prop_data):
 	return np.concatenate((prop_data, subgraph_prop), axis=1)
 
 # Wrapper for random walk propagation of full network by subgraphs
-def closed_form_network_propagation(network, binary_matrix, symmetric_norm=False, alpha=None, m=-0.17190024, b=0.7674828, verbose=False, save_path=None):
+def closed_form_network_propagation(network, binary_matrix, alpha,symmetric_norm=False,  verbose=False, save_path=None):
 	starttime=time.time()
-	# Calculate alpha from network (resulting alpha must be <1)
-	if alpha is not None:
-		network_alpha=alpha
-	else:
-		network_alpha = calculate_alpha(network, m, b)
 	if verbose:
 		print 'Alpha:', network_alpha
 	# Separate network into connected components and calculate propagation values of each sub-sample on each connected component
@@ -84,13 +89,8 @@ def closed_form_network_propagation(network, binary_matrix, symmetric_norm=False
 		return prop_data_df
 
 # Propagate binary matrix via iterative/power form of random walk model
-def iterative_network_propagation(network, binary_matrix, max_iter=250, tol=1e-8, alpha=None, m=-0.17190024, b=0.7674828, verbose=False, save_path=None):
+def iterative_network_propagation(network, binary_matrix, alpha, max_iter=250, tol=1e-8, verbose=False, save_path=None):
 	starttime=time.time()
-	# Calculate alpha
-	if alpha is not None:
-		network_alpha = alpha
-	else:
-		network_alpha = calculate_alpha(network, m, b)
 	if verbose:
 		print 'Alpha:', network_alpha
 	# Normalize full network for propagation
