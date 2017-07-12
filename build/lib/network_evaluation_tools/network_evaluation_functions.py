@@ -16,16 +16,16 @@ import pickle as p
 
 # Shuffle network in degree-preserving manner
 # Input: network - networkx formatted network
-def shuffle_network(network, verbose=False):
+def shuffle_network(network, max_tries_n=10, verbose=False):
 	# Shuffle Network
 	shuff_time = time.time()
 	edge_len=len(network.edges())
 	shuff_net=network.copy()
 	try:
-		nx.double_edge_swap(shuff_net, nswap=edge_len, max_tries=edge_len*10)
+		nx.double_edge_swap(shuff_net, nswap=edge_len, max_tries=edge_len*max_tries_n)
 	except:
 		if verbose:
-			print 'Note: Maximum number of swap attempts ('+repr(edge_len*10)+') exceeded before desired swaps achieved ('+repr(edge_len)+').'
+			print 'Note: Maximum number of swap attempts ('+repr(edge_len*max_tries_n)+') exceeded before desired swaps achieved ('+repr(edge_len)+').'
 	if verbose:
 		# Evaluate Network Similarity
 		shared_edges = len(set(network.edges()).intersection(set(shuff_net.edges())))
@@ -92,9 +92,11 @@ def calculate_AUPRC_parallel(node_set_params):
 		y_actual = pd.Series(0, index=prop_geno_sample_sum.index, dtype=int)									# nodes sorted by mean prop value
 		y_actual.ix[intersect_non_sample]+=1																	# which nodes in sorted list are in intersect_non_sample
 		intersect_non_sample_sorted = y_actual[y_actual==1].index											   	# intersect_non_sample sorted
-		precision, recall = [1], [0]																		  	# initialize precision and recall curves
+		TP, FN = 0, len(intersect_non_sample_sorted)															# initialize precision and recall curves
+		precision, recall = [1], [0]																			# initialize true positives and false negatives
 		for node in intersect_non_sample_sorted:															# Slide down sorted nodes by summed prop value by nodes that are in intersect_non_sample
-			TP, FN = sum(y_actual.ix[:node]), sum(y_actual.ix[node:])-1										   	# Calculate true positives and false negatives found at this point in list
+			TP += 1										   														# Calculate true positives and false negatives found at this point in list
+			FN -= 1																							   	# Calculate true positives and false negatives found at this point in list			
 			precision.append(TP/float(y_actual.ix[:node].shape[0]))											 	# Calculate precision ( TP / TP+FP ) and add point to curve
 			recall.append(TP/float(TP+FN))																	  	# Calculate recall ( TP / TP+FN ) and add point to curve
 		AUPRCs.append(metrics.auc(recall, precision))													   		# Calculate Area Under Precision-Recall Curve (AUPRC)
