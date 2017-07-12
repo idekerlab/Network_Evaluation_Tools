@@ -32,10 +32,23 @@ def shuffle_network(network, verbose=False):
 		print 'Network shuffled:', time.time()-shuff_time, 'seconds. Edge similarity:', shared_edges/float(edge_len)
 	return shuff_net
 
+# Calculate optimal sub-sampling proportion for test/train
+def calculate_p(network, nodesets, m=-0.18887257, b=0.64897403):
+	network_nodes = [str(gene) for gene in network.nodes()]
+	nodesets_p = {}
+	for nodeset in nodesets:
+		nodesets_coverage = len([node for node in nodesets[nodeset] if node in network_nodes])
+		nodesets_p[nodeset] = round(m*np.log10(nodesets_coverage)+b, 4)
+	return nodesets_p
+
 # Construct influence matrix of each network node propagated across network to use as kernel in AUPRC analysis
 def construct_prop_kernel(network, alpha=None, m=-0.17190024, b=0.7674828, verbose=False):
 	network_Fo = pd.DataFrame(data=np.identity(len(network.nodes())), index=network.nodes(), columns=network.nodes())
-	network_Fn = prop.closed_form_network_propagation(network, network_Fo, alpha=alpha, m=m, b=b, verbose=verbose)
+	if alpha is None:
+		alpha_val = prop.calculate_alpha(network, m=m, b=b)
+	else:
+		alpha_val = alpha
+	network_Fn = prop.closed_form_network_propagation(network, network_Fo, alpha_val, verbose=verbose)
 	if verbose:
 		print 'Propagated network kernel constructed'
 	return network_Fn
@@ -96,24 +109,27 @@ def parallel_analysis_initializer(global_prop_net):
 
 # Wapper for conducting AUPRC Analysis for input node set file and network (has parallel option)
 def AUPRC_Analysis(network_file, node_set_file, sample_p, sub_sample_iterations, 
-	alpha=None, m=-0.17190024, b=0.7674828, net_delim='\t', set_delim='\t', cores=1, verbose=False, save_path=None):
+	alpha=None, sample_m=-0.18887257, sample_b=0.64897403, prop_m=-0.02935302, prop_b=0.74842057, 
+	net_delim='\t', set_delim='\t', cores=1, verbose=False, save_path=None):
 	starttime=time.time()
 	# Load network
 	network = dit.load_network_file(network_file, delimiter=net_delim, verbose=verbose)
 	# Load node set
 	node_sets = dit.load_node_sets(node_set_file, delimiter=set_delim, verbose=verbose)
+	# Calculate p for each node set
+	node_sets_p = calculate_p(network, nodesets, m=sample_m, b=sample_b)
 	# Calculate network influence matrix
-	prop_net = construct_prop_kernel(network, alpha=alpha, m=m, b=b, verbose=verbose)
+	prop_net = construct_prop_kernel(network, alpha=alpha, m=prop_m, b=prop_b, verbose=verbose)
 	# Calculate AUPRC values for each node set
 	if cores == 1:
 		# Calculate AUPRC values for node sets one at a time
-		node_set_AUPRCs = {node_set:calculate_AUPRC_serial(prop_net, sample_p, sub_sample_iterations, node_sets[node_set], verbose=False) for node_set in node_sets}
+		node_set_AUPRCs = {node_set:calculate_AUPRC_serial(prop_net, node_sets_p[node_set], sub_sample_iterations, node_sets[node_set], verbose=False) for node_set in node_sets}
 	else:
 		# Initialize multiple threads for AUPRC analysis of multiple node sets
 		initializer_args = [prop_net]
 		pool = Pool(cores, parallel_analysis_initializer, initializer_args)
 		# Construct parameter list to be passed
-		AUPRC_Analysis_params = [[node_set, node_sets[node_set], sample_p, sub_sample_iterations, verbose] for node_set in node_sets]
+		AUPRC_Analysis_params = [[node_set, node_sets[node_set], node_sets_p[node_set], sub_sample_iterations, verbose] for node_set in node_sets]
 		# Run the AUPRC analysis for each geneset
 		AUPRC_results = pool.map(calculate_AUPRC_parallel, AUPRC_Analysis_params)
 		# Construct AUPRC results dictionary
@@ -131,12 +147,15 @@ def AUPRC_Analysis(network_file, node_set_file, sample_p, sub_sample_iterations,
 
 # Wrapper for shuffling input network and performing AUPRC analysis on each shuffled network and then compile results
 def null_AUPRC_Analysis(network_file, node_set_file, sample_p, sub_sample_iterations, null_iterations, 
-	alpha=None, m=-0.17190024, b=0.7674828, net_delim='\t', set_delim='\t', cores=1, verbose=False, save_path=None):
+	alpha=None, sample_m=-0.18887257, sample_b=0.64897403, prop_m=-0.02935302, prop_b=0.74842057, 
+	net_delim='\t', set_delim='\t', cores=1, verbose=False, save_path=None):
 	starttime=time.time()
 	# Load network
 	network = dit.load_network_file(network_file, delimiter=net_delim, verbose=verbose)
 	# Load node set
 	node_sets = dit.load_node_sets(node_set_file, delimiter=set_delim, verbose=verbose)
+	# Calculate p for each node set
+	node_sets_p = calculate_p(network, nodesets, m=sample_m, b=sample_b)
 	# Analyze shuffled networks
 	null_AUPRCs = []
 	for i in range(null_iterations):
@@ -145,13 +164,13 @@ def null_AUPRC_Analysis(network_file, node_set_file, sample_p, sub_sample_iterat
 		# Calculate AUPRC values for each node set
 		if cores == 1:
 			# Calculate AUPRC values for node sets one at a time
-			node_set_AUPRCs = {node_set:calculate_AUPRC_serial(prop_shuff_net, sample_p, sub_sample_iterations, node_sets[node_set], verbose=False) for node_set in node_sets}
+			node_set_AUPRCs = {node_set:calculate_AUPRC_serial(prop_shuff_net, node_sets_p[node_set], sub_sample_iterations, node_sets[node_set], verbose=False) for node_set in node_sets}
 		else:
 			# Initialize multiple threads for AUPRC analysis of multiple node sets
 			initializer_args = [prop_shuff_net]
 			pool = Pool(cores, parallel_analysis_initializer, initializer_args)
 			# Construct parameter list to be passed
-			AUPRC_Analysis_params = [[node_set, node_sets[node_set], sample_p, sub_sample_iterations, False] for node_set in node_sets]
+			AUPRC_Analysis_params = [[node_set, node_sets[node_set], node_sets_p[node_set], sub_sample_iterations, False] for node_set in node_sets]
 			# Run the AUPRC analysis for each geneset
 			AUPRC_results = pool.map(calculate_AUPRC_parallel, AUPRC_Analysis_params)
 			pool.close()

@@ -16,16 +16,16 @@ import pickle as p
 
 # Shuffle network in degree-preserving manner
 # Input: network - networkx formatted network
-def shuffle_network(network, verbose=False):
+def shuffle_network(network, max_tries_n=10, verbose=False):
 	# Shuffle Network
 	shuff_time = time.time()
 	edge_len=len(network.edges())
 	shuff_net=network.copy()
 	try:
-		nx.double_edge_swap(shuff_net, nswap=edge_len, max_tries=edge_len*10)
+		nx.double_edge_swap(shuff_net, nswap=edge_len, max_tries=edge_len*max_tries_n)
 	except:
 		if verbose:
-			print 'Note: Maximum number of swap attempts ('+repr(edge_len*10)+') exceeded before desired swaps achieved ('+repr(edge_len)+').'
+			print 'Note: Maximum number of swap attempts ('+repr(edge_len*max_tries_n)+') exceeded before desired swaps achieved ('+repr(edge_len)+').'
 	if verbose:
 		# Evaluate Network Similarity
 		shared_edges = len(set(network.edges()).intersection(set(shuff_net.edges())))
