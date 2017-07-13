@@ -67,9 +67,11 @@ def calculate_AUPRC_serial(prop_geno, p, n, node_set, verbose=False):
 		y_actual = pd.Series(0, index=prop_geno_sample_sum.index, dtype=int)									# nodes sorted by mean prop value
 		y_actual.ix[intersect_non_sample]+=1																	# which nodes in sorted list are in intersect_non_sample
 		intersect_non_sample_sorted = y_actual[y_actual==1].index											   	# intersect_non_sample sorted
-		precision, recall = [1], [0]																		  	# initialize precision and recall curves
+		TP, FN = 0, len(intersect_non_sample_sorted)															# initialize precision and recall curves
+		precision, recall = [1], [0]																			# initialize true positives and false negatives
 		for node in intersect_non_sample_sorted:															# Slide down sorted nodes by summed prop value by nodes that are in intersect_non_sample
-			TP, FN = sum(y_actual.ix[:node]), sum(y_actual.ix[node:])-1										   	# Calculate true positives and false negatives found at this point in list
+			TP += 1										   														# Calculate true positives found at this point in list
+			FN -= 1																							   	# Calculate false negatives found at this point in list			
 			precision.append(TP/float(y_actual.ix[:node].shape[0]))											 	# Calculate precision ( TP / TP+FP ) and add point to curve
 			recall.append(TP/float(TP+FN))																	  	# Calculate recall ( TP / TP+FN ) and add point to curve
 		AUPRCs.append(metrics.auc(recall, precision))													   		# Calculate Area Under Precision-Recall Curve (AUPRC)
