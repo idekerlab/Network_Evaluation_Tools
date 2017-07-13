@@ -1,6 +1,6 @@
 Metadata-Version: 1.1
 Name: network-evaluation-tools
-Version: 0.0.1
+Version: 0.0.2
 Summary: Module to perform patient and molecular network evaluation as described in Huang, Carlin, et al.
 Home-page: https://github.com/pypa/sampleproject
 Author: Justin Huang

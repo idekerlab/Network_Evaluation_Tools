@@ -9,7 +9,7 @@ from setuptools import setup, find_packages
 
 setup(
 	name='network_evaluation_tools',
-	version='0.0.1',
+	version='0.0.2',
 	description='Module to perform patient and molecular network evaluation as described in Huang, Carlin, et al.',
 	url='https://github.com/pypa/sampleproject',
 	author='Justin Huang',

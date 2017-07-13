@@ -3,10 +3,8 @@ network_evaluation_tools/__init__.py
 network_evaluation_tools/data_import_tools.py
 network_evaluation_tools/gene_conversion_tools.py
 network_evaluation_tools/miscellaneous_functions.py
-network_evaluation_tools/network_based_stratification.py
 network_evaluation_tools/network_evaluation_functions.py
 network_evaluation_tools/network_propagation.py
-network_evaluation_tools/patient_similarity_network.py
 network_evaluation_tools.egg-info/PKG-INFO
 network_evaluation_tools.egg-info/SOURCES.txt
 network_evaluation_tools.egg-info/dependency_links.txt
