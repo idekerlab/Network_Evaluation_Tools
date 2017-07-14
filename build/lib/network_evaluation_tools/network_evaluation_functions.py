@@ -99,7 +99,8 @@ def calculate_small_network_AUPRC(params):
 # This method is slower than the small network case, as well as forces the memory footprint to be too large
 # The parallel setup for this situation requries 
 def calculate_large_network_AUPRC(params):
-    geneset, intersect_non_sample_sorted, P_totals = params[0], params[1], params[2]
+    geneset, intersect_non_sample_sorted, P_totals, verbose = params[0], params[1], params[2], params[3]
+    runtime = time.time()
     TP, FN = 0, len(intersect_non_sample_sorted)	# initialize true positives and false negatives
     precision, recall = [1], [0]					# initialize precision and recall curves
     for node in intersect_non_sample_sorted:		# Step down sorted nodes by summed prop value by nodes that are in intersect_non_sample
@@ -108,10 +109,12 @@ def calculate_large_network_AUPRC(params):
         precision.append(TP/float(P_totals[node]))		# Calculate precision ( TP / TP+FP ) and add point to curve
         recall.append(TP/float(TP+FN))					# Calculate recall ( TP / TP+FN ) and add point to curve
     AUPRC = metrics.auc(recall, precision)				# Calculate Area Under Precision-Recall Curve (AUPRC)
+    if verbose:
+        print 'AUPRC Analysis for given node set:', geneset, 'complete:', round(time.time()-runtime, 2), 'seconds.'    
     return [geneset, AUPRC]
 
 # Wrapper to calculate AUPRC of multiple node sets' recovery for small networks (<1M edges)
-def small_network_AUPRC_wrapper(net_kernel, genesets, genesets_p, n=30, cores=1, verbose=False):
+def small_network_AUPRC_wrapper(net_kernel, genesets, genesets_p, n=30, cores=1, verbose=True):
     # Construct params list
     AUPRC_Analysis_params = [[geneset, genesets[geneset], genesets_p[geneset], n, verbose] for geneset in genesets]
     # Determine parallel calculation status
@@ -135,11 +138,11 @@ def small_network_AUPRC_wrapper(net_kernel, genesets, genesets_p, n=30, cores=1,
     return AUPRCs_table
 
 # Wrapper to calculate AUPRC of multiple node sets' recovery for large networks (>=1M edges)
-def large_network_AUPRC_wrapper(net_kernel, genesets, genesets_p, n=30,cores=1, verbose=False):
+def large_network_AUPRC_wrapper(net_kernel, genesets, genesets_p, n=30,cores=1, verbose=True):
     starttime = time.time()
     # Construct binary gene set sub-sample matrix
     geneset_list = genesets.keys()
-    n, m, c = 30, len(geneset_list), net_kernel.shape[0]
+    m, c = len(geneset_list), net_kernel.shape[0]
     subsample_mat = np.zeros((n*m, c))
     y_actual_mat = np.zeros((n*m, c))
     # Each block of length n rows is a sub-sampled binary vector of the corresponding gene set
@@ -177,7 +180,7 @@ def large_network_AUPRC_wrapper(net_kernel, genesets, genesets_p, n=30,cores=1, 
                     ascending=[False, False, False]).ix[int(sum(subsample_mat[row])):]['Non-Sample']
             intersect_non_sample_sorted = prop_result[prop_result==1].index
             P_totals = {node:float(prop_result.ix[:node].shape[0]) for node in intersect_non_sample_sorted}
-            AUPRC_Analysis_params.append([geneset_list[i], intersect_non_sample_sorted, P_totals])
+            AUPRC_Analysis_params.append([geneset_list[i], intersect_non_sample_sorted, P_totals, verbose])
     # Determine parallel calculation status
     if cores == 1:
         # Calculate AUPRC values for all gene sets
@@ -207,6 +210,8 @@ def AUPRC_Analysis_single(network_file, genesets_file, shuffle=False, kernel_fil
         network = shuffle_network(network, verbose=verbose)
     # Get network size
     net_size = len(network.edges())
+    if verbose:
+    	print 'Network size:', net_size, 'Edges'
     # Calculate or load network propagation kernel
     if kernel_file is None:
         # Determine propagation constant
@@ -245,7 +250,7 @@ def AUPRC_Analysis_single(network_file, genesets_file, shuffle=False, kernel_fil
 # Note that actual_net_AUPRCs_fn is a specific file name (with extention)
 # shuff_net_AUPRCs_fn is a generic filename marker (assumes all shuff_net_AUPRCs files have the same file name structure)
 # The function will take all files containing the filename marker given to shuff_net_AUPRCs_fn and construct a single null AUPRCs table from them (in wd)
-def calculate_network_performance_score(wd, actual_net_AUPRCs_fn, shuff_net_AUPRCs_fn, verbose=False, save_path=None):
+def calculate_network_performance_score(wd, actual_net_AUPRCs_fn, shuff_net_AUPRCs_fn, verbose=True, save_path=None):
 	# Read input data files and concat together:
 	actual_net_AUPRCs = pd.read_csv(wd+actual_net_AUPRCs_fn, index_col=0, header=-1)
 	shuff_net_AUPRCs = [pd.read_csv(wd+fn, index_col=0, header=-1) for fn in os.listdir(wd) if shuff_net_AUPRCs_fn in fn]
