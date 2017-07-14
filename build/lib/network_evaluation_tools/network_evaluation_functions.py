@@ -204,7 +204,7 @@ def AUPRC_Analysis_single(network_file, genesets_file, shuffle=False, kernel_fil
     network = dit.load_network_file(network_file, verbose=verbose)
     # Shuffle network?
     if shuffle:
-        network = nef.shuffle_network(network, verbose=verbose)
+        network = shuffle_network(network, verbose=verbose)
     # Get network size
     net_size = len(network.edges())
     # Calculate or load network propagation kernel
@@ -215,7 +215,7 @@ def AUPRC_Analysis_single(network_file, genesets_file, shuffle=False, kernel_fil
         else:
             alpha = prop_constant
         # Calculate network propagation kernel
-        net_kernel = nef.construct_prop_kernel(network, alpha=alpha, verbose=True)
+        net_kernel = construct_prop_kernel(network, alpha=alpha, verbose=verbose)
     else:
         # Load network propagation kernel
         if kernel_file.endswith('.hdf'):
@@ -223,9 +223,9 @@ def AUPRC_Analysis_single(network_file, genesets_file, shuffle=False, kernel_fil
         else:
             net_kernel = pd.read_csv(kernel_file)
     # Load node sets to recover
-    genesets = dit.load_node_sets(genesets_file, verbose=True)
+    genesets = dit.load_node_sets(genesets_file, verbose=verbose)
     # Calculate sub-sample rate for each node set given network
-    genesets_p = nef.calculate_p(network, genesets)
+    genesets_p = calculate_p(network, genesets)
     # if network is small:
     if net_size < 1000000:
         AUPRC_table = small_network_AUPRC_wrapper(net_kernel, genesets, genesets_p, n=subsample_iter, cores=cores, verbose=verbose)
@@ -245,10 +245,10 @@ def AUPRC_Analysis_single(network_file, genesets_file, shuffle=False, kernel_fil
 # Note that actual_net_AUPRCs_fn is a specific file name (with extention)
 # shuff_net_AUPRCs_fn is a generic filename marker (assumes all shuff_net_AUPRCs files have the same file name structure)
 # The function will take all files containing the filename marker given to shuff_net_AUPRCs_fn and construct a single null AUPRCs table from them (in wd)
-def AUPRC_Analysis_with_ZNorm(wd, actual_net_AUPRCs_fn, shuff_net_AUPRCs_fn, verbose=False, save_path=None):
+def calculate_network_performance_score(wd, actual_net_AUPRCs_fn, shuff_net_AUPRCs_fn, verbose=False, save_path=None):
 	# Read input data files and concat together:
-	actual_net_AUPRCs = pd.read_csv(wd+actual_net_AUPRCs_fn, index_col=0)
-	shuff_net_AUPRCs = [pd.read_csv(wd+fn, index_col=0) for fn in os.listdir(wd) if shuff_net_AUPRCs_fn in fn]
+	actual_net_AUPRCs = pd.read_csv(wd+actual_net_AUPRCs_fn, index_col=0, header=-1)
+	shuff_net_AUPRCs = [pd.read_csv(wd+fn, index_col=0, header=-1) for fn in os.listdir(wd) if shuff_net_AUPRCs_fn in fn]
 	shuff_net_AUPRCs = pd.concat(shuff_net_AUPRCs, axis=1)
 	shuff_net_AUPRCs = shuff_net_AUPRCs.ix[actual_net_AUPRCs.index]
 	# Compute robust z-score for composite network performances
@@ -256,7 +256,7 @@ def AUPRC_Analysis_with_ZNorm(wd, actual_net_AUPRCs_fn, shuff_net_AUPRCs_fn, ver
 	AUPRC_null_median = shuff_net_AUPRCs.median(axis=1)
 	AUPRC_null_MAD = abs(shuff_net_AUPRCs.subtract(AUPRC_null_median, axis=0)).median(axis=1)
 	AUPRC_null_MAD_scaled = k*AUPRC_null_MAD
-	AUPRC_ZNorm = (actual_net_AUPRCs['AUPRC'] - AUPRC_null_median).divide(AUPRC_null_MAD_scaled)
+	AUPRC_ZNorm = (actual_net_AUPRCs[1] - AUPRC_null_median).divide(AUPRC_null_MAD_scaled)
 	if save_path is None:
 		if verbose:
 			print 'AUPRC values z-normalized'		
