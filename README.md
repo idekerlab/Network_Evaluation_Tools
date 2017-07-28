@@ -2,7 +2,13 @@
 
 Network Evaluation Tools is a Python 2.7 package with corresponding examples for evaluating a network's ability to group a given node set in network proximity. This package was developed as a part of the work done in [citation](link). 
 
-## Installing NBS
+## Modules in this package
+  - __data_import_tools__ - 
+  - __gene_conversion_tools__ - 
+  - __miscellaneous_functions__ - 
+  - __network_evaluation_functions__ - 
+  - __network_propagation__ - 
+
 ### Version and Dendencies
 Currently, pyNBS requires Python 2.7 - Python 2.7.13. Note that pyNBS may not work with Python 3.0+.
 pyNBS requires: 
@@ -27,14 +33,20 @@ Note:
 
 ## Network analysis
 1. If the network needs to be normalized to a particular naming scheme:<br>
-A Jupyter Notebook describing now each network analyzed in the original Huang et al paper can be found in the ```Network_Processing``` folder.<br>
-2. There are two ways to execute the NBS code:<br>
-	1. From __Jupyter Notebook__. <br>
-	```OV_run_pyNBS.ipynb``` and ```UT_run_pyNBS.ipynb```are 2 Jyputer Notebooks that use Ovarian cancer and Uterine cancer data same as [Nature Methods Hofree et al 2013 paper](https://www.nature.com/nmeth/journal/v10/n11/full/nmeth.2651.html) and successfully replicate the paper result using pyNBS. Data can be found in ```data/``` folder. See the ```OV_run_pyNBS.ipynb``` and ```UT_run_pyNBS.ipynb``` jupyter notebook for algorithmic details.
-	2. From __command line__.  <br>
-	Execute the following command to view parameter/option documentation:<br>
-	```Python run_pyNBS.py -h``` <br>
-	Run ```Python run_pyNBS.py``` with desired parameters and options in documentation.
+A Jupyter Notebook describing how each network was processed from the raw download file in the original [paper](Link) can be found in the ```Network Processing Notebooks``` folder.<br>
+2. There are two ways to perform the network evaluation on a gene set:<br>
+The following network analyses can be performed either from a Jupyter Notebook (see ```Network Evaluation Notebooks``` folder) or from the command line (see ```Network Evaluation Scripts``` folder). Jupyter notebooks are documented within the notebook and the documentation for the python scripts can be seen using the command ```python [script_name].py -h```. <br>
+	1. Fast Network Evaluation
+    1. __Jupyter Notebook__-
+    2. __From the command line__-
+	2. Full Network Evaluation
+    1. __Jupyter Notebook__-
+    2. __From the command line__-
+
+## Data provided in this repository (see ```Data``` Folder)
+ - _DisGeNET / Oncogenic Component Gene Sets_-
+ - _Network performance (AUPRCs) on DisGeNET / Oncogenic Component Gene Sets_-
+ - _Network performance effect sizes on DisGeNET / Oncogenic Component Gene Sets_-      
 
 ## Issues
 Please feel free to post issues/bug reports. Questions can be sent to jkh013@ucsd.edu
