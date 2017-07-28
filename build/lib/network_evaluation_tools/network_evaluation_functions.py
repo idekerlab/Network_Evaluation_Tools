@@ -262,13 +262,27 @@ def calculate_network_performance_score(wd, actual_net_AUPRCs_fn, shuff_net_AUPR
 	AUPRC_null_MAD = abs(shuff_net_AUPRCs.subtract(AUPRC_null_median, axis=0)).median(axis=1)
 	AUPRC_null_MAD_scaled = k*AUPRC_null_MAD
 	AUPRC_ZNorm = (actual_net_AUPRCs[1] - AUPRC_null_median).divide(AUPRC_null_MAD_scaled)
-	if save_path is None:
-		if verbose:
-			print 'AUPRC values z-normalized'		
-		return AUPRC_ZNorm
-	else:
+	if save_path is not None:
 		AUPRC_ZNorm.to_csv(save_path)
-		if verbose:
-			print 'AUPRC values z-normalized'				
-		return AUPRC_ZNorm
+	if verbose:
+		print 'AUPRC values z-normalized'				
+	return AUPRC_ZNorm
 
+# Calculate relative gain of actual network AUPRC over median random network AUPRC performance for each gene set
+# Note that actual_net_AUPRCs_fn is a specific file name (with extention)
+# shuff_net_AUPRCs_fn is a generic filename marker (assumes all shuff_net_AUPRCs files have the same file name structure)
+# The function will take all files containing the filename marker given to shuff_net_AUPRCs_fn and construct a single null AUPRCs table from them (in wd)
+def calculate_network_performance_gain(wd, actual_net_AUPRCs_fn, shuff_net_AUPRCs_fn, verbose=True, save_path=None):
+	# Read input data files and concat together:
+	actual_net_AUPRCs = pd.read_csv(wd+actual_net_AUPRCs_fn, index_col=0, header=-1)
+	shuff_net_AUPRCs = [pd.read_csv(wd+fn, index_col=0, header=-1) for fn in os.listdir(wd) if shuff_net_AUPRCs_fn in fn]
+	shuff_net_AUPRCs = pd.concat(shuff_net_AUPRCs, axis=1)
+	shuff_net_AUPRCs = shuff_net_AUPRCs.ix[actual_net_AUPRCs.index]
+	# Compute relative gain
+	AUPRC_null_median = shuff_net_AUPRCs.median(axis=1)
+	AUPRC_gain = (actual_net_AUPRCs[1] - AUPRC_null_median).divide(AUPRC_null_median)
+	if save_path is not None:
+		AUPRC_gain.to_csv(save_path)
+	if verbose:
+		print 'AUPRC relative performance gain calculated'
+	return AUPRC_gain
