@@ -39,7 +39,7 @@ The following network analyses can be performed either from a Jupyter Notebook (
     1. Fast Network Evaluation  
         * Jupyter Notebook -
         * From the command line -  
-	  2. Full Network Evaluation  
+    2. Full Network Evaluation  
         * Jupyter Notebook -
         * From the command line -
 
