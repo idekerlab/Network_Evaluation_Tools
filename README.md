@@ -1,6 +1,6 @@
-# pyNBS
+# Network Evaluation Tools
 
-This is a python package replicating the network-based stratification algorithm used in the [Nature Methods Hofree et al 2013 paper](https://www.nature.com/nmeth/journal/v10/n11/full/nmeth.2651.html). This Python code repository is ported from [NBS Matlab 0.2.0](http://chianti.ucsd.edu/~mhofree/NBS/).
+Network Evaluation Tools is a Python 2.7 package with corresponding examples for evaluating a network's ability to group a given node set in network proximity. This package was developed as a part of the work done in [citation](link). 
 
 ## Installing NBS
 ### Version and Dendencies
