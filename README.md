@@ -3,11 +3,11 @@
 Network Evaluation Tools is a Python 2.7 package with corresponding examples for evaluating a network's ability to group a given node set in network proximity. This package was developed as a part of the work done in [citation](link). 
 
 ## Modules in this package
-  - data_import_tools - This module contains functions for helping import network files and gene set files for analysis.
-  - gene_conversion_tools - This module contains functions for helping convert, filter, and save networks from their raw database form. Used in the Network Processing Jupyter Notebooks.
-  - miscellaneous_functions - This module contains various functions developed to help with analysis along the way. These functions are not well tested and may contain bugs. These functions were generally used to determine other network performance metrics on network recovery of gene sets.
-  - network_evaluation_functions - This module contains many of the core functions of the set-based network evaluation algorithm.
-  - network_propagation - This module contains functions to help with network propagation steps used in the set-based network evaluation algorithm.
+  - _data_import_tools_ - This module contains functions for helping import network files and gene set files for analysis.
+  - _gene_conversion_tools_ - This module contains functions for helping convert, filter, and save networks from their raw database form. Used in the Network Processing Jupyter Notebooks.
+  - _miscellaneous_functions_ - This module contains various functions developed to help with analysis along the way. These functions are not well tested and may contain bugs. These functions were generally used to determine other network performance metrics on network recovery of gene sets.
+  - _network_evaluation_functions_ - This module contains many of the core functions of the set-based network evaluation algorithm.
+  - _network_propagation_ - This module contains functions to help with network propagation steps used in the set-based network evaluation algorithm.
 
 ## Version and Dendencies
 Currently, pyNBS requires Python 2.7 - Python 2.7.13. Note that pyNBS may not work with Python 3.0+.
