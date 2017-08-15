@@ -38,6 +38,7 @@ A Jupyter Notebook describing how each network was processed from the raw downlo
 The following network analyses can be performed either from a Jupyter Notebook or from the command line (see ```Network Evaluation Examples``` folder). Jupyter notebooks are documented within the notebook and the documentation for the python scripts can be seen using the command ```python [script_name].py -h```. <br>
 
 ## Data provided in this repository (see ```Data``` Folder)
+ - Database Citations - An Excel file containing details about all of the networks used in the original paper's analysis and affiliated citations for all of the databases used.
  - _DisGeNET / Oncogenic Component Gene Sets_ - Two tab separated files, each line containing a gene set from either DisGeNET or the Oncogenic Component collection. The first column of each file is the name of the gene set followed by the list of genes associated with that given gene set on the same line.
  - _Network performance (AUPRCs) on DisGeNET / Oncogenic Component Gene Sets_ - Two csv files containing the raw Z-normalized AUPRC scores (network performance scores) of each network analyzed on each gene set analyzed from DisGeNET or the Oncogenic Component gene set collection.
  - _Network performance effect sizes on DisGeNET / Oncogenic Component Gene Sets_ - Two csv files containing the relative performance gain of each network's AUPRC score over the median null AUPRC score for each gene set analyzed from DisGeNET or the Oncogenic Component gene set collection.
