@@ -26,7 +26,6 @@ setup(
 	install_requires=[
         'argparse>=1.1',
         'networkx>=1.11',
-        'numba>=0.32.0',
         'numpy>=1.11.0',
         'matplotlib>=1.5.1',
         'multiprocessing>0.70',
