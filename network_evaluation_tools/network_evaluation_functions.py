@@ -209,7 +209,7 @@ def AUPRC_Analysis_single(network_file, genesets_file, shuffle=False, kernel_fil
 	if shuffle:
 		network = shuffle_network(network, verbose=verbose)
 	# Get network size
-	net_size = len(network.edges())
+	net_size = len(network.nodes())
 	if verbose:
 		print 'Network size:', net_size, 'Edges'
 	# Calculate or load network propagation kernel
@@ -232,11 +232,14 @@ def AUPRC_Analysis_single(network_file, genesets_file, shuffle=False, kernel_fil
 	# Calculate sub-sample rate for each node set given network
 	genesets_p = calculate_p(network, genesets)
 	# if network is small:
-	if net_size < 250000:
+	if net_size < 10000:
 		AUPRC_table = small_network_AUPRC_wrapper(net_kernel, genesets, genesets_p, n=subsample_iter, cores=cores, verbose=verbose)
 	# if network is large:
-	else:
+	elif (net_size >= 10000) & (net_size < 15000):
 		AUPRC_table = large_network_AUPRC_wrapper(net_kernel, genesets, genesets_p, n=subsample_iter, cores=cores, verbose=verbose)
+	# if network is large:
+	else:
+		AUPRC_table = large_network_AUPRC_wrapper(net_kernel, genesets, genesets_p, n=subsample_iter, cores=1, verbose=verbose)
 	if verbose:
 		print 'AUPRC values calculated', time.time()-starttime, 'seconds'
 	# Save table

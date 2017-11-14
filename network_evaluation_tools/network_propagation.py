@@ -7,7 +7,6 @@ import numpy as np
 import scipy
 import pandas as pd
 import copy
-from numba import jit
 
 # Normalize network (or network subgraph) for random walk propagation
 def normalize_network(network, symmetric_norm=False):
@@ -46,7 +45,6 @@ def calculate_alpha_old(network, m=-0.17190024, b=0.7674828):
 
 # Closed form random-walk propagation (as seen in HotNet2) for each subgraph: Ft = (1-alpha)*Fo * (I-alpha*norm_adj_mat)^-1
 # Concatenate to previous set of subgraphs
-@jit(nopython=True)
 def fast_random_walk(alpha, binary_mat, subgraph_norm, prop_data):
 	term1=(1-alpha)*binary_mat
 	term2=np.identity(binary_mat.shape[1])-alpha*subgraph_norm

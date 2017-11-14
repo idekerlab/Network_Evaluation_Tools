@@ -46,5 +46,7 @@ The following network analyses can be performed either from a Jupyter Notebook o
 ## Issues
 Please feel free to post issues/bug reports. Questions can be sent to jkh013@ucsd.edu
 
+## License
+See the [LICENSE](https://github.com/huangger/Network_Evaluation_Tools/blob/master/LICENSE.txt) file for license rights and limitations (MIT).
 
 
