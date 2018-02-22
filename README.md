@@ -10,11 +10,10 @@ Network Evaluation Tools is a Python 2.7 package with corresponding examples for
   - _network_propagation_ - This module contains functions to help with network propagation steps used in the set-based network evaluation algorithm.
 
 ## Version and Dendencies
-Currently, pyNBS requires Python 2.7 - Python 2.7.13. Note that pyNBS may not work with Python 3.0+.
-pyNBS requires: 
+Currently, the network_evaluation_tools package requires Python 2.7 - Python 2.7.13. Note that some functions in this package may not work with Python 3.0+.
+network_evaluation_tools requires: 
   - Argparse >= 1.1
   - NetworkX >= 1.11
-  - Numba >= 0.32.0
   - Numpy >= 1.11.0
   - Matplotlib >= 1.5.1
   - Pandas >= 0.19.0

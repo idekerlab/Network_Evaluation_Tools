@@ -68,6 +68,8 @@ if __name__ == "__main__":
 		help='Number of times to perform sub-sampling during performance recovery (AUPRC) calculation for each node set. Default is 30.')
 	parser.add_argument('-c', '--cores', type=positive_int, default=1, required=False,
 		help='Number of cores to be utilized by machine for performance calculation step. NOTE: Each core must have enough memory to store at least network-sized square matrix and given node sets to perform calculations.')	
+	parser.add_argument('-bg', '--background', type=str, default='network', choices=['genesets', 'network'], required=False,
+		help='Establishes the background gene set to calculate AUPRC over. Default is to use all genes in the network, can change to use only genes from the union of all gene sets tested (i.e. disease genes only).')	
 
 	# Network performance score calculations (with null networks)
 	parser.add_argument("-i", "--null_iter", type=positive_int, default=30, required=False,
@@ -94,7 +96,7 @@ if __name__ == "__main__":
 
 	# Load Network
 	network = dit.load_network_file(args.network_path, verbose=args.verbose)
-	network_size = len(network.edges())
+	network_size = len(network.nodes())
 
 	# Load Gene sets
 	genesets = dit.load_node_sets(args.node_sets_file, verbose=args.verbose)
@@ -110,15 +112,25 @@ if __name__ == "__main__":
 	# Calculate network kernel (also determine propagation constant if not set)
 	kernel = nef.construct_prop_kernel(network, alpha=args.alpha, verbose=True)
 
+	# Change background gene list if needed
+	if args.background == 'genesets':
+		background_node_set = set()
+		for geneset in genesets:
+			background_node_set = background_node_set.union(genesets[geneset])
+		background_nodes = list(background_node_set.intersection(set(kernel.index)))
+	else:
+		background_nodes = list(kernel.index)
+
+
 	############################################
 	##### Network Performance Calculations #####
 	############################################
 
-	# Calculate AUPRC for each gene set on actual network (large networks are  >2.5M edges)
-	if network_size <= 2500000:
-		actual_AUPRC_values = nef.small_network_AUPRC_wrapper(kernel, genesets, genesets_p, n=args.sub_sample_iter, cores=args.cores, verbose=True)
+	# Calculate AUPRC for each gene set on actual network (large networks are >=10k nodes)
+	if network_size < 10000:
+		actual_AUPRC_values = nef.small_network_AUPRC_wrapper(kernel, genesets, genesets_p, n=args.sub_sample_iter, cores=args.cores, bg=background_nodes, verbose=True)
 	else:
-		actual_AUPRC_values = nef.large_network_AUPRC_wrapper(kernel, genesets, genesets_p, n=args.sub_sample_iter, cores=args.cores, verbose=True)
+		actual_AUPRC_values = nef.large_network_AUPRC_wrapper(kernel, genesets, genesets_p, n=args.sub_sample_iter, cores=args.cores, bg=background_nodes, verbose=True)
 
 	# Save the actual network's AUPRC values
 	actual_AUPRC_values.to_csv(args.actual_AUPRCs_save_path)
@@ -144,10 +156,10 @@ if __name__ == "__main__":
 			# Construct null network kernel
 			shuffNet_kernel = nef.construct_prop_kernel(shuffNet, alpha=args.alpha, verbose=False)
 			# Calculate null network AUPRCs
-			if network_size <= 2500000:
-				shuffNet_AUPRCs = nef.small_network_AUPRC_wrapper(shuffNet_kernel, genesets, genesets_p, n=args.sub_sample_iter, cores=args.cores, verbose=True)
+			if network_size < 10000:
+				shuffNet_AUPRCs = nef.small_network_AUPRC_wrapper(shuffNet_kernel, genesets, genesets_p, n=args.sub_sample_iter, cores=args.cores, bg=background_nodes, verbose=True)
 			else:
-				shuffNet_AUPRCs = nef.large_network_AUPRC_wrapper(shuffNet_kernel, genesets, genesets_p, n=args.sub_sample_iter, cores=args.cores, verbose=True)
+				shuffNet_AUPRCs = nef.large_network_AUPRC_wrapper(shuffNet_kernel, genesets, genesets_p, n=args.sub_sample_iter, cores=args.cores, bg=background_nodes, verbose=True)
 			null_AUPRCs.append(shuffNet_AUPRCs)
 		# Construct table of null AUPRCs
 		null_AUPRCs_table = pd.concat(null_AUPRCs, axis=1)

@@ -70,7 +70,7 @@ def global_var_initializer(global_net_kernel):
 # This method is faster for smaller networks, but still has a relatively large memory footprint
 # The parallel setup for this situation requires passing the network kernel to each individual thread
 def calculate_small_network_AUPRC(params):
-	node_set_name, node_set, p, n, verbose = params[0], params[1], params[2], params[3], params[4]
+	node_set_name, node_set, p, n, bg, verbose = params[0], params[1], params[2], params[3], params[4], params[5]
 	runtime = time.time()
 	intersect = [nodes for nodes in node_set if nodes in kernel.index]
 	AUPRCs = []
@@ -78,9 +78,9 @@ def calculate_small_network_AUPRC(params):
 	for i in range(n):																				# Number of times to run the sampling
 		sample = random.sample(intersect, sample_size)													# get node set sample
 		intersect_non_sample = [node for node in intersect if node not in sample]					   	# nodes in intersect not in sample
-		kernel_non_sample = list(kernel.index[~kernel.index.isin(sample)])							 	# nodes in network not in sample
-		kernel_sample_sum = kernel.ix[sample][kernel_non_sample].sum().sort_values(ascending=False)		# summed prop value for all nodes
-		y_actual = pd.Series(0, index=kernel_sample_sum.index, dtype=int)								# nodes sorted by mean prop value
+		bg_non_sample = [node for node in bg if node not in sample]							 			# nodes in background gene list not in sample
+		bg_sample_sum = kernel.ix[sample][bg_non_sample].sum().sort_values(ascending=False)				# summed prop value for all nodes in background
+		y_actual = pd.Series(0, index=bg_sample_sum.index, dtype=int)									# nodes sorted by mean prop value
 		y_actual.ix[intersect_non_sample]+=1															# which nodes in sorted list are in intersect_non_sample
 		intersect_non_sample_sorted = y_actual[y_actual==1].index									   	# intersect_non_sample sorted
 		TP, FN = 0, len(intersect_non_sample_sorted)													# initialize precision and recall curves
@@ -114,9 +114,13 @@ def calculate_large_network_AUPRC(params):
 	return [geneset, AUPRC]
 
 # Wrapper to calculate AUPRC of multiple node sets' recovery for small networks (<250k edges)
-def small_network_AUPRC_wrapper(net_kernel, genesets, genesets_p, n=30, cores=1, verbose=True):
+def small_network_AUPRC_wrapper(net_kernel, genesets, genesets_p, n=30, cores=1, bg=None, verbose=True):
 	# Construct params list
-	AUPRC_Analysis_params = [[geneset, genesets[geneset], genesets_p[geneset], n, verbose] for geneset in genesets]
+	if bg is None:
+		bg_intersect = list(net_kernel.index)
+	else:
+		bg_intersect = list(set(bg).intersection(set(net_kernel.index)))
+	AUPRC_Analysis_params = [[geneset, genesets[geneset], genesets_p[geneset], n, bg_intersect, verbose] for geneset in genesets]
 	# Determine parallel calculation status
 	if cores == 1:
 		# Set network kernel
@@ -138,7 +142,7 @@ def small_network_AUPRC_wrapper(net_kernel, genesets, genesets_p, n=30, cores=1,
 	return AUPRCs_table
 
 # Wrapper to calculate AUPRC of multiple node sets' recovery for large networks (>=250k edges)
-def large_network_AUPRC_wrapper(net_kernel, genesets, genesets_p, n=30,cores=1, verbose=True):
+def large_network_AUPRC_wrapper(net_kernel, genesets, genesets_p, n=30, cores=1, bg=None, verbose=True):
 	starttime = time.time()
 	# Construct binary gene set sub-sample matrix
 	geneset_list = genesets.keys()
@@ -171,13 +175,17 @@ def large_network_AUPRC_wrapper(net_kernel, genesets, genesets_p, n=30,cores=1, 
 	# Construct parameter list to be passed
 	AUPRC_Analysis_params = []
 	for i in range(len(geneset_list)):
-		AUPRCs = []
 		for j in range(n):
 			row = (i*n)+j
-			prop_result = pd.DataFrame(np.array((subsample_mat[row], y_actual_mat[row], prop_subsamples[row])), 
-				index=['Sub-Sample', 'Non-Sample', 'Prop Score'], 
-				columns=net_kernel.columns).T.sort_values(by=['Sub-Sample', 'Prop Score', 'Non-Sample'],
-					ascending=[False, False, False]).ix[int(sum(subsample_mat[row])):]['Non-Sample']
+			prop_result_full = pd.DataFrame(np.array((subsample_mat[row], y_actual_mat[row], prop_subsamples[row])), 
+									   		index=['Sub-Sample', 'Non-Sample', 'Prop Score'], columns=net_kernel.columns).T
+			# Set background gene sets from a predefined gene set or all network genes
+			if bg is None:
+				prop_result = prop_result_full.sort_values(by=['Sub-Sample', 'Prop Score', 'Non-Sample'],
+														   ascending=[False, False, False]).ix[int(sum(subsample_mat[row])):]['Non-Sample']
+			else:
+				prop_result = prop_result_full.ix[bg].dropna().sort_values(by=['Sub-Sample', 'Prop Score', 'Non-Sample'],
+																		   ascending=[False, False, False]).ix[int(sum(subsample_mat[row])):]['Non-Sample']
 			intersect_non_sample_sorted = prop_result[prop_result==1].index
 			P_totals = {node:float(prop_result.ix[:node].shape[0]) for node in intersect_non_sample_sorted}
 			AUPRC_Analysis_params.append([geneset_list[i], intersect_non_sample_sorted, P_totals, verbose])
@@ -201,7 +209,8 @@ def large_network_AUPRC_wrapper(net_kernel, genesets, genesets_p, n=30,cores=1, 
 	return AUPRCs_table
 
 # Wrapper to calculate AUPRCs of multiple node sets given network and node set files
-def AUPRC_Analysis_single(network_file, genesets_file, shuffle=False, kernel_file=None, prop_constant=None, subsample_iter=30, cores=1, save_path=None, verbose=True):
+def AUPRC_Analysis_single(network_file, genesets_file, shuffle=False, kernel_file=None, prop_constant=None, 
+						  subsample_iter=30, cores=1, geneset_background=False, save_path=None, verbose=True):
 	starttime = time.time()
 	# Load network
 	network = dit.load_network_file(network_file, verbose=verbose)
@@ -209,9 +218,10 @@ def AUPRC_Analysis_single(network_file, genesets_file, shuffle=False, kernel_fil
 	if shuffle:
 		network = shuffle_network(network, verbose=verbose)
 	# Get network size
-	net_size = len(network.nodes())
+	net_nodes = network.nodes()
+	net_size = len(net_nodes)
 	if verbose:
-		print 'Network size:', net_size, 'Edges'
+		print 'Network size:', net_size, 'Nodes'
 	# Calculate or load network propagation kernel
 	if kernel_file is None:
 		# Determine propagation constant
@@ -231,15 +241,23 @@ def AUPRC_Analysis_single(network_file, genesets_file, shuffle=False, kernel_fil
 	genesets = dit.load_node_sets(genesets_file, verbose=verbose)
 	# Calculate sub-sample rate for each node set given network
 	genesets_p = calculate_p(network, genesets)
+	# Set background of genes to recover as all network nodes or union of all gene sets' genes
+	if geneset_background:
+		background_gene_set = set()
+		for geneset in genesets:
+			background_gene_set = background_gene_set.union(genesets[geneset])
+		background_genes = list(background_gene_set.intersection(set(net_nodes)))
+	else:
+		background_genes = list(net_nodes)
 	# if network is small:
 	if net_size < 10000:
-		AUPRC_table = small_network_AUPRC_wrapper(net_kernel, genesets, genesets_p, n=subsample_iter, cores=cores, verbose=verbose)
+		AUPRC_table = small_network_AUPRC_wrapper(net_kernel, genesets, genesets_p, n=subsample_iter, cores=cores, bg=background_genes, verbose=verbose)
 	# if network is large:
 	elif (net_size >= 10000) & (net_size < 15000):
-		AUPRC_table = large_network_AUPRC_wrapper(net_kernel, genesets, genesets_p, n=subsample_iter, cores=cores, verbose=verbose)
+		AUPRC_table = large_network_AUPRC_wrapper(net_kernel, genesets, genesets_p, n=subsample_iter, cores=cores, bg=background_genes, verbose=verbose)
 	# if network is large:
 	else:
-		AUPRC_table = large_network_AUPRC_wrapper(net_kernel, genesets, genesets_p, n=subsample_iter, cores=1, verbose=verbose)
+		AUPRC_table = large_network_AUPRC_wrapper(net_kernel, genesets, genesets_p, n=subsample_iter, cores=1, bg=background_genes, verbose=verbose)
 	if verbose:
 		print 'AUPRC values calculated', time.time()-starttime, 'seconds'
 	# Save table
