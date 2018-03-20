@@ -44,7 +44,7 @@ def calculate_p(network, nodesets, m=-0.18887257, b=0.64897403):
 
 # Construct influence matrix of each network node propagated across network to use as kernel in AUPRC analysis
 # Input: NetowkrkX object. No propagation constant or alpha model required, can be calculated
-def construct_prop_kernel(network, alpha=None, m=-0.17190024, b=0.7674828, verbose=False, save_path=None):
+def construct_prop_kernel(network, alpha=None, m=-0.02935302, b=0.74842057, verbose=False, save_path=None):
 	network_Fo = pd.DataFrame(data=np.identity(len(network.nodes())), index=network.nodes(), columns=network.nodes())
 	if alpha is None:
 		alpha_val = prop.calculate_alpha(network, m=m, b=b)

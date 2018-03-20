@@ -11,7 +11,7 @@ setup(
 	name='network_evaluation_tools',
 	version='0.0.2',
 	description='Module to perform patient and molecular network evaluation as described in Huang, Carlin, et al.',
-	url='https://github.com/pypa/sampleproject',
+	url='https://github.com/idekerlab/Network_Evaluation_Tools',
 	author='Justin Huang',
 	author_email='jkh013@ucsd.edu',
 	license='MIT',
