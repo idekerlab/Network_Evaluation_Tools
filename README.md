@@ -1,6 +1,6 @@
 # Network Evaluation Tools
 
-Network Evaluation Tools is a Python 2.7 package with corresponding examples for evaluating a network's ability to group a given node set in network proximity. This package was developed as a part of the work done in [citation](link). 
+Network Evaluation Tools is a Python 2.7 package with corresponding examples for evaluating a network's ability to group a given node set in network proximity. This package was developed as a part of the work done in [Huang and Carlin et al. 2018](http://www.cell.com/cell-systems/fulltext/S2405-4712(18)30095-4). 
 
 ## Modules in this package
   - _data_import_tools_ - This module contains functions for helping import network files and gene set files for analysis.
@@ -13,7 +13,7 @@ Network Evaluation Tools is a Python 2.7 package with corresponding examples for
 Currently, the network_evaluation_tools package requires Python 2.7 - Python 2.7.13. Note that some functions in this package may not work with Python 3.0+.
 network_evaluation_tools requires: 
   - Argparse >= 1.1
-  - NetworkX >= 1.11
+  - NetworkX >= 2.1
   - Numpy >= 1.11.0
   - Matplotlib >= 1.5.1
   - Pandas >= 0.19.0

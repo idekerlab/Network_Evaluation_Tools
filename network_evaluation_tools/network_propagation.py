@@ -33,16 +33,6 @@ def calculate_alpha(network, m=-0.02935302, b=0.74842057):
 	else:
 		return alpha_val
 
-# Calculate optimal propagation coefficient (old model)
-def calculate_alpha_old(network, m=-0.17190024, b=0.7674828):
-	avg_node_degree = np.log10(np.mean(network.degree().values()))
-	alpha_val = round(m*avg_node_degree+b,3)
-	if alpha_val <=0:
-		raise ValueError('Alpha <= 0 - Network Avg Node Degree is too high')
-		# There should never be a case where Alpha >= 1, as avg node degree will never be negative
-	else:
-		return alpha_val
-
 # Closed form random-walk propagation (as seen in HotNet2) for each subgraph: Ft = (1-alpha)*Fo * (I-alpha*norm_adj_mat)^-1
 # Concatenate to previous set of subgraphs
 def fast_random_walk(alpha, binary_mat, subgraph_norm, prop_data):
@@ -61,7 +51,7 @@ def closed_form_network_propagation(network, binary_matrix, network_alpha, symme
 	subgraphs = list(nx.connected_component_subgraphs(network))
 	# Initialize propagation results by propagating first subgraph
 	subgraph = subgraphs[0]
-	subgraph_nodes = subgraph.nodes()
+	subgraph_nodes = list(subgraph.nodes)
 	prop_data_node_order = list(subgraph_nodes)
 	binary_matrix_filt = np.array(binary_matrix.T.ix[subgraph_nodes].fillna(0).T)
 	subgraph_norm = normalize_network(subgraph, symmetric_norm=symmetric_norm)
@@ -69,7 +59,7 @@ def closed_form_network_propagation(network, binary_matrix, network_alpha, symme
 	prop_data = fast_random_walk(network_alpha, binary_matrix_filt, subgraph_norm, prop_data_empty)
 	# Get propagated results for remaining subgraphs
 	for subgraph in subgraphs[1:]:
-		subgraph_nodes = subgraph.nodes()
+		subgraph_nodes = list(subgraph.nodes)
 		prop_data_node_order = prop_data_node_order + subgraph_nodes
 		binary_matrix_filt = np.array(binary_matrix.T.ix[subgraph_nodes].fillna(0).T)
 		subgraph_norm = normalize_network(subgraph, symmetric_norm=symmetric_norm)
@@ -85,39 +75,3 @@ def closed_form_network_propagation(network, binary_matrix, network_alpha, symme
 		if verbose:
 			print 'Network Propagation Complete:', time.time()-starttime, 'seconds'				
 		return prop_data_df
-
-# Propagate binary matrix via iterative/power form of random walk model
-def iterative_network_propagation(network, binary_matrix, network_alpha, max_iter=250, tol=1e-8, verbose=False, save_path=None):
-	starttime=time.time()
-	if verbose:
-		print 'Alpha:', network_alpha
-	# Normalize full network for propagation
-	starttime = time.time()
-	norm_adj_mat = normalize_network(network)
-	if verbose:
-	   print "Network Normalized", time.time()-starttime, 'seconds'
-	# Initialize data structures for propagation
-	Fi = scipy.sparse.csr_matrix(binary_matrix.T.ix[network.nodes()].fillna(0).astype(int).T)
-	Fn_prev = copy.deepcopy(Fi)
-	step_RMSE = [sum(sum(np.array(Fi.todense())))]
-	# Propagate forward
-	i = 0
-	while (i <= max_iter) and (step_RMSE[-1] > tol):
-		if i == 0:
-			Fn = network_alpha*np.dot(Fi, norm_adj_mat)+(1-network_alpha)*Fi
-		else:
-			Fn_prev = Fn
-			Fn = network_alpha*np.dot(Fn_prev, norm_adj_mat)+(1-network_alpha)*Fi
-		step_diff = (Fn_prev-Fn).toarray().flatten()
-		step_RMSE.append(np.sqrt(sum(step_diff**2) / len(step_diff)))
-		i+=1
-	prop_data_df = pd.DataFrame(data=Fn.todense(), index=binary_matrix.index, columns = network.nodes())
-	if save_path is None:
-		if verbose:
-			print 'Network Propagation Complete:', i, 'steps,', time.time()-starttime, 'seconds, step RMSE:', step_RMSE[-1]		
-		return prop_data_df, step_RMSE[1:]
-	else:
-		prop_data_df.to_csv(save_path)
-		if verbose:
-			print 'Network Propagation Complete:', i, 'steps,', time.time()-starttime, 'seconds, step RMSE:', step_RMSE[-1]				
-		return prop_data_df, step_RMSE[1:]
