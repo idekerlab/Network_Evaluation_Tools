@@ -290,7 +290,7 @@ def calculate_network_performance_score(actual_net_AUPRCs, shuff_net_AUPRCs, ver
 	AUPRC_null_median = shuff_net_AUPRCs.median(axis=1)
 	AUPRC_null_MAD = abs(shuff_net_AUPRCs.subtract(AUPRC_null_median, axis=0)).median(axis=1)
 	AUPRC_null_MAD_scaled = k*AUPRC_null_MAD
-	AUPRC_ZNorm = (actual_net_AUPRCs[1] - AUPRC_null_median).divide(AUPRC_null_MAD_scaled)
+	AUPRC_ZNorm = (actual_net_AUPRCs - AUPRC_null_median).divide(AUPRC_null_MAD_scaled)
 	if save_path is not None:
 		AUPRC_ZNorm.to_csv(save_path)
 	if verbose:
@@ -307,7 +307,7 @@ def calculate_network_performance_gain(actual_net_AUPRCs, shuff_net_AUPRCs, verb
 	shuff_net_AUPRCs = shuff_net_AUPRCs.ix[genesets]	
 	# Compute relative gain
 	AUPRC_null_median = shuff_net_AUPRCs.median(axis=1)
-	AUPRC_gain = (actual_net_AUPRCs[1] - AUPRC_null_median).divide(AUPRC_null_median)
+	AUPRC_gain = (actual_net_AUPRCs - AUPRC_null_median).divide(AUPRC_null_median)
 	if save_path is not None:
 		AUPRC_gain.to_csv(save_path)
 	if verbose:
