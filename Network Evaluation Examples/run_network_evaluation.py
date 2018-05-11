@@ -94,6 +94,10 @@ if __name__ == "__main__":
 	##### Network Evaluation Setup #####
 	####################################
 
+	# Limit core usage (if defined)
+	import mkl
+	mkl.set_num_threads(args.cores)
+	
 	# Load Network
 	network = dit.load_network_file(args.network_path, verbose=args.verbose)
 	network_size = len(network.nodes())
