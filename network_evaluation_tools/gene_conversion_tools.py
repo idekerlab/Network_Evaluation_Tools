@@ -67,9 +67,9 @@ def query_batch(query_string, tax_id='9606', scopes="symbol, entrezgene, alias, 
 		json = []
 		for chunk in query_chunks:
 		    data = {'species': '9606', # Human Only
-		        'scopes': "entrezgene, retired", # Default symbol, entrez, alias, uniprot. Alias often returns more genes than needed, return only higest scoring genes
-		        'fields': "symbol, entrezgene", # Which gene name spaces to convert to
-		        'q': chunk}
+		        	'scopes': "entrezgene, retired", # Default symbol, entrez, alias, uniprot. Alias often returns more genes than needed, return only higest scoring genes
+		        	'fields': "symbol, entrezgene", # Which gene name spaces to convert to
+		        	'q': chunk}
 		    res = requests.post('http://mygene.info/v3/query', data)
 		    json = json+res.json()		    
 	print len(json), 'Matched query results'
