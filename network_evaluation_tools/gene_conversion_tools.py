@@ -44,13 +44,35 @@ def query_constructor(gene_list, exclude_prefixes=None, print_invalid_genes=Fals
 
 # Function for posting batch query to MyGene.info v3.0.0 API
 def query_batch(query_string, tax_id='9606', scopes="symbol, entrezgene, alias, uniprot", fields="symbol, entrezgene"):
+	query_split = query_string.split(' ')
+	query_n = len(query_split)
 	query_time = time.time()
-	data = {'species': tax_id, # Human Only
-			'scopes': scopes, # Default symbol, entrez, alias, uniprot. Alias often returns more genes than needed, return only higest scoring genes
-			'fields': fields, # Which gene name spaces to convert to
-			'q': query_string}
-	r = requests.post('http://mygene.info/v3/query', data)
-	json = r.json()
+	if query_n <=1000:
+		data = {'species': tax_id, # Human Only
+				'scopes': scopes, # Default symbol, entrez, alias, uniprot. Alias often returns more genes than needed, return only higest scoring genes
+				'fields': fields, # Which gene name spaces to convert to
+				'q': query_string}
+		res = requests.post('http://mygene.info/v3/query', data)
+		json = res.json()
+	else:
+		# If the query is too long, we will need to break it up into chunks of 1000 query genes (MyGene.info cap)
+		if query_n % 1000 == 0:
+		    chunks = query_n / 1000
+		else:
+		    chunks = (query_n / 1000) + 1
+		query_chunks = []
+		for i in range(chunks):
+		    start_i, end_i = i*1000, (i+1)*1000
+		    query_chunks.append(' '.join(query_split[start_i:end_i]))
+		json = []
+		for chunk in query_chunks:
+		    data = {'species': '9606', # Human Only
+		        'scopes': "entrezgene, retired", # Default symbol, entrez, alias, uniprot. Alias often returns more genes than needed, return only higest scoring genes
+		        'fields': "symbol, entrezgene", # Which gene name spaces to convert to
+		        'q': chunk}
+		    res = requests.post('http://mygene.info/v3/query', data)
+		    json = json+res.json()		    
+	print len(json), 'Matched query results'
 	print 'Batch query complete:', round(time.time()-query_time,2), 'seconds'
 	return json
 
