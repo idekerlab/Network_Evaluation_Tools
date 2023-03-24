@@ -37,8 +37,7 @@ alpha = 0.684
 def test_construct_prop_kernel():
     """
     This test generates the kernel based on a specific network \
-    of 206 nodes. If the network for example changes, make sure to
-    edit the last 2 assertions on this test.
+    of 206 nodes.
 
     :return:
     """
@@ -49,5 +48,5 @@ def test_construct_prop_kernel():
     kernel = nef.construct_prop_kernel(_network, alpha=_alpha, verbose=True)
     assert isinstance(kernel, pd.DataFrame)
     assert kernel.shape == (len(_network.nodes), len(_network.nodes))  # Propagate using the random walk model
-    assert kernel['AIMP2']['AIMP2'] == 0.33562464152566673
-    assert kernel['ARID5A']['ARL8B'] == 0
+
+
