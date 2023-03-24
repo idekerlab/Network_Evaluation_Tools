@@ -34,7 +34,7 @@ genesets_p = {'Carcinoma, Lewis Lung': 0.5921,
 alpha = 0.684
 
 
-def test_construct_prop_kernel_with_networkx():
+def test_construct_prop_kernel():
     """
     This test generates the kernel based on a specific network \
     of 206 nodes. If the network for example changes, make sure to
